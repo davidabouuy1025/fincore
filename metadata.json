@@ -1,0 +1,6 @@
+{
+  "name": "Fincore",
+  "description": "High-efficiency financial report analyzer for Bursa Malaysia. Process annual reports into structured XML and perform cross-company side-by-side analysis.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
