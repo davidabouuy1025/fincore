@@ -4,77 +4,146 @@ import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import multer from "multer";
 // @ts-ignore
-import pdf from "pdf-parse";
+import pdfParse from "pdf-parse";
 import { XMLBuilder, XMLParser } from "fast-xml-parser";
 import dotenv from "dotenv";
-import { createWorker } from 'tesseract.js';
+import { createWorker } from "tesseract.js";
 
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 const DB_ROOT = process.env.FINCORE_DB_PATH || "./fincore_db";
 const STORAGE_ROOT = path.join(DB_ROOT, "original_reports");
 
-// Handle pdf-parse ESM default export
-const parsePdf = (pdf as any).default || pdf;
-
-// Ensure DB and storage roots exist
-[DB_ROOT, STORAGE_ROOT].forEach(dir => {
+// Ensure directories exist
+[DB_ROOT, STORAGE_ROOT].forEach((dir) => {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, STORAGE_ROOT),
-  filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
+  filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname.replace(/\s+/g, "_")}`),
 });
-const upload = multer({ storage });
+const upload = multer({ storage, limits: { fileSize: 50 * 1024 * 1024 } });
 
-// Financial Dictionary for normalization
+// ── Financial keyword dictionary ──────────────────────────────────────────────
 const DICTIONARY: Record<string, string[]> = {
-  revenue: ["Revenue", "Turnover", "Total Revenue", "Income from operations"],
-  netProfit: ["Profit After Tax", "Profit Attributable to Owners", "Net Income", "Net Profit"],
-  costOfSales: ["Cost of Sales", "Cost of Revenue", "Direct Costs"],
+  revenue: [
+    "Revenue",
+    "Turnover",
+    "Total Revenue",
+    "Total Turnover",
+    "Income from Operations",
+    "Net Revenue",
+    "Sales",
+  ],
+  netProfit: [
+    "Profit After Tax",
+    "Profit Attributable to Owners",
+    "Net Income",
+    "Net Profit",
+    "Profit After Taxation",
+    "PAT",
+  ],
+  costOfSales: [
+    "Cost of Sales",
+    "Cost of Revenue",
+    "Direct Costs",
+    "Cost of Goods Sold",
+    "COGS",
+  ],
   grossProfit: ["Gross Profit"],
   totalAssets: ["Total Assets"],
   totalLiabilities: ["Total Liabilities"],
-  operatingCashFlow: ["Net Cash from Operating Activities", "Cash Generated from Operations"],
+  operatingCashFlow: [
+    "Net Cash from Operating Activities",
+    "Cash Generated from Operations",
+    "Net Cash Generated from Operating",
+    "Operating Activities",
+  ],
 };
 
-// Simple table row extractor using regex
-function extractNumericValue(text: string, keys: string[]): string | null {
+// ── Value extractor: tries multiple patterns ──────────────────────────────────
+function extractValue(text: string, keys: string[]): string | null {
   for (const key of keys) {
-    // Look for lines that start with the key (case insensitive) followed by numbers
-    // This is a simplified logic for extraction
-    const regex = new RegExp(`${key}\\s+([\\(]?[\\d,.]+[\\)]?)`, "i");
-    const match = text.match(regex);
-    if (match) {
-      let val = match[1].replace(/[\(\),]/g, (m) => (m === "(" || m === ")" ? "-" : ""));
-      return val.trim();
+    const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+    // Pattern 1: key followed by optional spaces/tabs then a number (same line)
+    const patterns = [
+      new RegExp(`${escaped}[\\s\\t:]*([\\(]?[\\d,\\.]+[\\)]?)`, "i"),
+      // Pattern 2: key then newline(s) then number
+      new RegExp(`${escaped}[\\s\\S]{0,50}?([\\(]?[\\d,\\.]+[\\)]?)`, "i"),
+    ];
+
+    for (const regex of patterns) {
+      const match = text.match(regex);
+      if (match && match[1]) {
+        let val = match[1].replace(/,/g, "");
+        // Convert parenthesised negatives: (1234) → -1234
+        if (val.startsWith("(") && val.endsWith(")")) {
+          val = "-" + val.slice(1, -1);
+        }
+        const num = parseFloat(val);
+        if (!isNaN(num) && num !== 0) return String(num);
+      }
     }
   }
   return null;
 }
 
-async function performOCR(filePath: string) {
-  const worker = await createWorker('eng');
-  const { data: { text } } = await worker.recognize(filePath);
-  await worker.terminate();
-  return text;
+// ── OCR via Tesseract ─────────────────────────────────────────────────────────
+async function performOCR(filePath: string): Promise<string> {
+  const worker = await createWorker("eng");
+  try {
+    const { data: { text } } = await worker.recognize(filePath);
+    return text;
+  } finally {
+    await worker.terminate();
+  }
 }
 
-async function startServer() {
-  // API routes
-  app.use(express.json());
+// ── Detect company name from text ────────────────────────────────────────────
+function detectCompanyName(text: string, fallback: string): string {
+  // Try Berhad / Bhd first
+  const berhadMatch = text.match(/([A-Z][A-Z\s&()'.,]{3,60}(?:BERHAD|BHD))/i);
+  if (berhadMatch) return berhadMatch[1].trim().replace(/\s+/g, " ");
 
-  // Serve original reports
+  // Try lines of all-caps at start
+  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+  for (const line of lines.slice(0, 20)) {
+    if (line.length > 5 && line.length < 80 && /^[A-Z][A-Z\s&.()',-]+$/.test(line)) {
+      return line;
+    }
+  }
+  return fallback.replace(/\.(pdf|png|jpg|jpeg)$/i, "").replace(/[-_]/g, " ").trim();
+}
+
+// ── Detect sector from text ───────────────────────────────────────────────────
+function detectSector(text: string, defaultSector: string): string {
+  const t = text.toLowerCase();
+  if (/semiconductor|software|tech|it services|cloud|digital/.test(t)) return "TECHNOLOGY";
+  if (/palm oil|plantation|estate|rubber/.test(t)) return "PLANTATION";
+  if (/bank|insurance|finance|financial services|capital/.test(t)) return "FINANCIAL_SERVICES";
+  if (/consumer|retail|beverage|food|household/.test(t)) return "CONSUMER_PRODUCTS";
+  if (/manufacturing|industrial|machinery|equipment/.test(t)) return "INDUSTRIAL_PRODUCTS";
+  if (/reit|property fund|real estate investment trust/.test(t)) return "REITS";
+  if (/oil|gas|energy|petroleum|power/.test(t)) return "ENERGY";
+  if (/hospital|pharma|healthcare|medical|clinic/.test(t)) return "HEALTHCARE";
+  if (/construction|contractor|infrastructure|building/.test(t)) return "CONSTRUCTION";
+  return defaultSector;
+}
+
+// ── Server boot ───────────────────────────────────────────────────────────────
+async function startServer() {
+  app.use(express.json());
   app.use("/reports", express.static(STORAGE_ROOT));
 
-  // Analyze Documents (PDF or Image)
+  // ── POST /api/analyze ──
   app.post("/api/analyze", upload.array("reports"), async (req: any, res) => {
     try {
-      const { year, sector } = req.body;
-      const files = req.files as any[];
+      const { year = "2025", sector = "TECHNOLOGY" } = req.body;
+      const files: Express.Multer.File[] = req.files as Express.Multer.File[];
 
       if (!files || files.length === 0) {
         return res.status(400).json({ error: "No files provided" });
@@ -86,44 +155,42 @@ async function startServer() {
         let text = "";
         let docType = "DIGITAL_PDF";
 
-        if (file.mimetype === "application/pdf") {
-          const buffer = fs.readFileSync(file.path);
-          const data = await parsePdf(buffer);
-          text = data.text;
+        try {
+          if (file.mimetype === "application/pdf") {
+            const buffer = fs.readFileSync(file.path);
+            const parsed = await pdfParse(buffer);
+            text = parsed.text || "";
 
-          // Detection: if very little text, assume it's a scanned PDF
-          if (text.trim().length < 150) {
-            console.log(`[OCR] Detected scanned PDF: ${file.originalname}`);
+            if (text.trim().length < 200) {
+              console.log(`[OCR] Scanned PDF detected: ${file.originalname}`);
+              text = await performOCR(file.path);
+              docType = "SCANNED_PDF";
+            }
+          } else if (file.mimetype.startsWith("image/")) {
+            console.log(`[OCR] Image file: ${file.originalname}`);
             text = await performOCR(file.path);
-            docType = "SCANNED_PDF";
+            docType = "IMAGE";
           }
-        } else if (file.mimetype.startsWith("image/")) {
-          console.log(`[OCR] Detected image: ${file.originalname}`);
+        } catch (parseErr) {
+          console.error(`[WARN] Parse error for ${file.originalname}:`, parseErr);
           text = await performOCR(file.path);
-          docType = "IMAGE";
+          docType = "SCANNED_PDF";
         }
 
-        // Metadata extraction (simplified)
-        const companyNameMatch = text.match(/([A-Z\s]{4,}(?:BERHAD|BHD))/i);
-        const companyName = companyNameMatch ? companyNameMatch[1].trim() : file.originalname.replace(/\.(pdf|png|jpg|jpeg)$/i, "");
-        
-        let detectedSector = sector;
-        const lowText = text.toLowerCase();
-        if (lowText.includes("semiconductor") || lowText.includes("software")) detectedSector = "TECHNOLOGY";
-        else if (lowText.includes("palm oil") || lowText.includes("estate")) detectedSector = "PLANTATION";
-        else if (lowText.includes("bank") || lowText.includes("insurance")) detectedSector = "FINANCIAL_SERVICES";
+        const companyName = detectCompanyName(text, file.originalname);
+        const detectedSector = detectSector(text, sector);
 
-        const financials: any = {
+        const financials: Record<string, Record<string, string | null>> = {
           incomeStatement: {},
           balanceSheet: {},
           cashFlow: {},
         };
 
         for (const [id, keys] of Object.entries(DICTIONARY)) {
-          const val = extractNumericValue(text, keys);
-          if (id === "revenue" || id === "netProfit" || id === "costOfSales" || id === "grossProfit") {
+          const val = extractValue(text, keys);
+          if (["revenue", "netProfit", "costOfSales", "grossProfit"].includes(id)) {
             financials.incomeStatement[id] = val;
-          } else if (id === "totalAssets" || id === "totalLiabilities") {
+          } else if (["totalAssets", "totalLiabilities"].includes(id)) {
             financials.balanceSheet[id] = val;
           } else if (id === "operatingCashFlow") {
             financials.cashFlow[id] = val;
@@ -139,20 +206,21 @@ async function startServer() {
               OriginalFileName: file.originalname,
               StoredFileName: file.filename,
               Currency: "MYR '000",
-              DocType: docType
+              DocType: docType,
+              ProcessedAt: new Date().toISOString(),
             },
             Financials: financials,
           },
         };
 
-        // Save to XML
+        // Save XML
         const sectorDir = path.join(DB_ROOT, year, detectedSector);
         if (!fs.existsSync(sectorDir)) fs.mkdirSync(sectorDir, { recursive: true });
 
-        const fileName = `${companyName.replace(/[^a-zA-Z0-9]/g, "_")}.xml`;
-        const builder = new XMLBuilder({ format: true });
-        const xmlContent = builder.build(reportData);
-        fs.writeFileSync(path.join(sectorDir, fileName), xmlContent);
+        const safeName = companyName.replace(/[^a-zA-Z0-9]/g, "_").slice(0, 60);
+        const fileName = `${safeName}.xml`;
+        const builder = new XMLBuilder({ format: true, ignoreAttributes: false });
+        fs.writeFileSync(path.join(sectorDir, fileName), builder.build(reportData));
 
         results.push({
           companyName,
@@ -160,128 +228,144 @@ async function startServer() {
           isConflict: detectedSector !== sector,
           fileName,
           docType,
-          storedFileName: file.filename
+          storedFileName: file.filename,
         });
+
+        console.log(`[OK] Processed: ${companyName} (${docType}) → ${detectedSector}`);
       }
 
       res.json({ success: true, results });
-    } catch (error: any) {
-      console.error("Analysis failure:", error);
-      res.status(500).json({ error: error.message });
+    } catch (err: any) {
+      console.error("[ERROR] Analysis failure:", err);
+      res.status(500).json({ error: err.message });
     }
   });
 
-  // Get reports for a year/sector
-  app.get("/api/reports/:year/:sector", async (req, res) => {
+  // ── GET /api/reports/:year/:sector ──
+  app.get("/api/reports/:year/:sector", (req, res) => {
     try {
       const { year, sector } = req.params;
       const sectorPath = path.join(DB_ROOT, year, sector);
 
-      if (!fs.existsSync(sectorPath)) {
-        return res.json([]);
-      }
+      if (!fs.existsSync(sectorPath)) return res.json([]);
 
-      const files = fs.readdirSync(sectorPath);
-      const parser = new XMLParser();
-      const reports = files.map((file) => {
-        const content = fs.readFileSync(path.join(sectorPath, file), "utf-8");
-        return parser.parse(content).CompanyReport;
-      });
+      const parser = new XMLParser({ ignoreAttributes: false, parseAttributeValue: true });
+      const files = fs.readdirSync(sectorPath).filter((f) => f.endsWith(".xml"));
+
+      const reports = files
+        .map((file) => {
+          try {
+            const content = fs.readFileSync(path.join(sectorPath, file), "utf-8");
+            return parser.parse(content).CompanyReport;
+          } catch {
+            return null;
+          }
+        })
+        .filter(Boolean);
 
       res.json(reports);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
     }
   });
 
-  // Get archive list
-  app.get("/api/archive", async (req, res) => {
+  // ── GET /api/archive ──
+  app.get("/api/archive", (req, res) => {
     try {
       if (!fs.existsSync(DB_ROOT)) return res.json([]);
-      
-      const years = fs.readdirSync(DB_ROOT).filter(f => !isNaN(Number(f)));
-      const archive = years.map(year => {
+
+      const entries = fs.readdirSync(DB_ROOT, { withFileTypes: true });
+      const years = entries.filter((e) => e.isDirectory() && /^\d{4}$/.test(e.name)).map((e) => e.name);
+
+      const archive = years.map((year) => {
         const yearPath = path.join(DB_ROOT, year);
-        const sectors = fs.readdirSync(yearPath);
+        const sectors = fs
+          .readdirSync(yearPath, { withFileTypes: true })
+          .filter((e) => e.isDirectory())
+          .map((e) => e.name);
         return { year, sectors };
       });
-      
-      res.json(archive);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+
+      res.json(archive.sort((a, b) => Number(b.year) - Number(a.year)));
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
     }
   });
 
-  // Zhipu AI (Zai) Insights Endpoint
+  // ── POST /api/ai-insights ──
   app.post("/api/ai-insights", async (req, res) => {
     try {
       const { reports, sector, year } = req.body;
       const apiKey = process.env.ZHIPU_AI_API_KEY;
 
       if (!apiKey) {
-        return res.status(500).json({ error: "ZHIPU_AI_API_KEY is not configured in the environment." });
+        return res.status(500).json({ error: "ZHIPU_AI_API_KEY not configured in .env" });
       }
 
-      const prompt = `Analyze the following financial data for companies in the ${sector} sector of Bursa Malaysia for FY${year}. 
-      Provide a concise side-by-side comparison summary. Focus on:
-      1. Profitability (Revenue and Net Profit growth/margins).
-      2. Solvency (Total Assets vs Liabilities).
-      3. Operational Efficiency.
-      
-      Keep it brief and professional.
-      
-      DATA: ${JSON.stringify(reports.map((r: any) => ({
-        name: r.Metadata.CompanyName,
-        financials: r.Financials
-      })))}`;
+      const prompt = `You are a financial analyst specializing in Bursa Malaysia.
+
+Analyze the following financial data for companies in the ${sector} sector for FY${year}.
+Provide a concise, structured comparison covering:
+1. Revenue & Profitability
+2. Balance Sheet Strength (Assets vs Liabilities)
+3. Cash Flow Health
+4. Ranking: which company appears strongest overall and why.
+
+Keep it under 300 words. Be direct and professional.
+
+DATA:
+${JSON.stringify(
+  reports.map((r: any) => ({
+    company: r.Metadata?.CompanyName,
+    financials: r.Financials,
+  })),
+  null,
+  2
+)}`;
 
       const response = await fetch("https://open.bigmodel.cn/api/paas/v4/chat/completions", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${apiKey}`
+          Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
           model: "glm-4",
-          messages: [
-            { role: "user", content: prompt }
-          ],
-          stream: false
-        })
+          messages: [{ role: "user", content: prompt }],
+          stream: false,
+          max_tokens: 600,
+        }),
       });
 
-      const data = await response.json();
-      if (data.choices && data.choices[0]) {
+      const data: any = await response.json();
+
+      if (data.choices?.[0]?.message?.content) {
         res.json({ text: data.choices[0].message.content });
       } else {
-        console.error("Zhipu AI error response:", data);
-        res.status(500).json({ error: "Invalid response from Zhipu AI" });
+        console.error("[ZAI] Unexpected response:", JSON.stringify(data));
+        res.status(500).json({ error: data.error?.message || "Invalid response from ZAI" });
       }
-    } catch (error: any) {
-      console.error("AI Insights Error:", error);
-      res.status(500).json({ error: error.message });
+    } catch (err: any) {
+      console.error("[AI] Error:", err);
+      res.status(500).json({ error: err.message });
     }
   });
 
-  // Vite middleware for development
+  // ── Vite / Static ──
   if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
+    const vite = await createViteServer({ server: { middlewareMode: true }, appType: "spa" });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
+    const dist = path.join(process.cwd(), "dist");
+    app.use(express.static(dist));
+    app.get("*", (req, res) => res.sendFile(path.join(dist, "index.html")));
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`\n✅ FINCORE running → http://localhost:${PORT}`);
+    console.log(`   DB Root : ${path.resolve(DB_ROOT)}`);
+    console.log(`   Reports : ${path.resolve(STORAGE_ROOT)}\n`);
   });
 }
 
-startServer();
-X
+startServer().catch(console.error);

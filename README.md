@@ -1,20 +1,58 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# FINCORE — Bursa Malaysia Financial Intelligence System
 
-# Run and deploy your AI Studio app
+Upload annual reports (PDF or image), extract financials automatically, and visualize side-by-side comparisons.
 
-This contains everything you need to run your app locally.
+## Features
+- **Digital PDF** parsing via `pdf-parse`
+- **Scanned PDF & Image OCR** via `tesseract.js`
+- **Auto-extraction** of Revenue, Net Profit, COGS, Gross Profit, Total Assets, Liabilities, Operating Cash Flow
+- **Sector auto-detection** from document text
+- **Bar charts** comparing companies side-by-side
+- **XML archive** — persisted storage, organized by year + sector
+- **AI Insights** via Zhipu AI (GLM-4) — optional
+- **Ctrl+V paste** support for screenshots
 
-View your app in AI Studio: https://ai.studio/apps/95ad25f5-f2cf-40ab-8106-abe9bd3eadc0
+## Setup
 
-## Run Locally
+```bash
+# 1. Install dependencies
+npm install
 
-**Prerequisites:**  Node.js
+# 2. Configure environment
+cp .env.example .env
+# Edit .env — add ZHIPU_AI_API_KEY if you want AI insights
 
+# 3. Start dev server
+npm run dev
+# Opens at http://localhost:3000
+```
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## Usage
+
+1. Go to **INGEST** tab → select year and sector
+2. Drop PDFs or images (or paste screenshots with Ctrl+V)
+3. Click **EXECUTE_ANALYSIS**
+4. View results in **DATA_MATRIX** tab
+5. Click company initials or "VIEW_SOURCE" to see the original document
+
+## AI Insights (Optional)
+
+Sign up at [open.bigmodel.cn](https://open.bigmodel.cn) for a free Zhipu AI API key, then add it to `.env`:
+
+```
+ZHIPU_AI_API_KEY=your_key_here
+```
+
+## Notes on OCR Accuracy
+
+For best results with scanned PDFs/images:
+- Use high-resolution scans (300 DPI+)
+- Ensure text is not rotated or heavily distorted
+- Tables are extracted using regex patterns — financial figures directly beside labels work best
+
+## Production Build
+
+```bash
+npm run build
+NODE_ENV=production npm run preview
+```
