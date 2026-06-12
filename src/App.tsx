@@ -118,6 +118,10 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    console.log("App mounted");
+  }, []);
+
+  useEffect(() => {
     fetchArchive();
   }, [fetchArchive]);
 
@@ -179,9 +183,17 @@ export default function App() {
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log("files object:", e.target.files);
+    console.log("files length:", e.target.files?.length);
+
     if (e.target.files) {
-      setPendingFiles((prev) => [...prev, ...Array.from(e.target.files!)]);
-      e.target.value = "";
+      const files = Array.from(e.target.files);
+
+      setPendingFiles((prev) => {
+        const next = [...prev, ...files];
+        // console.log("NEXT =", next.length);
+        return next;
+      });
     }
   };
 
@@ -344,6 +356,7 @@ export default function App() {
     setUploadStep("select");
   };
 
+
   return (
     <div className="min-h-screen bg-hacker-bg text-slate-800 font-sans overflow-x-hidden">
       <div className="scanline" />
@@ -394,7 +407,7 @@ export default function App() {
         <AnimatePresence mode="wait">
           {view === "upload" && (
             <UploadView
-              key="upload"
+              key={"upload"}
               uploadStep={uploadStep}
               year={year}
               setYear={setYear}
