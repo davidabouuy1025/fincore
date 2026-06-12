@@ -136,6 +136,7 @@ export function UploadView({
             >
               <input
                 type="file"
+                key={pendingFiles.length}
                 multiple
                 accept="application/pdf, image/*"
                 onChange={handleFileChange}
@@ -150,7 +151,7 @@ export function UploadView({
           </div>
 
           {/* Pending files */}
-          <AnimatePresence>
+          <>
             {pendingFiles.length > 0 && (
               <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0 }} className="space-y-2">
                 <p className="text-[10px] tracking-widest text-slate-500 font-bold uppercase">Files Queue ({pendingFiles.length})</p>
@@ -168,7 +169,7 @@ export function UploadView({
                 ))}
               </motion.div>
             )}
-          </AnimatePresence>
+          </>
 
           {/* Gemini AI extraction configuration */}
           <div className="bg-gradient-to-r from-emerald-50/50 to-teal-50/20 border border-emerald-100 p-4 rounded-xl flex items-center justify-between shadow-3xs">
