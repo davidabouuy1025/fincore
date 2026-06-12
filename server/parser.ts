@@ -1,4 +1,11 @@
 import Tesseract from "tesseract.js";
+import fs from "fs";
+import os from "os";
+import path from "path";
+import { execFile } from "child_process";
+import { promisify } from "util";
+
+const execFileAsync = promisify(execFile);
 
 /**
  * Perform optical character recognition on an image file
@@ -11,6 +18,61 @@ export async function performOCR(filePath: string): Promise<string> {
     console.error("[OCR ERROR] Failed to recognize image:", err);
     return "";
   }
+}
+
+export async function performPdfOCR(filePath: string): Promise<string> {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "fincore-pdf-ocr-"));
+  const outputPrefix = path.join(tempDir, "page");
+
+  try {
+    try {
+      await execFileAsync("pdftoppm", ["-png", "-r", "200", filePath, outputPrefix], { timeout: 120000 });
+    } catch {
+      await execFileAsync("magick", ["-density", "200", filePath, path.join(tempDir, "page-%d.png")], { timeout: 120000 });
+    }
+
+    const pageImages = fs
+      .readdirSync(tempDir)
+      .filter((file) => file.toLowerCase().endsWith(".png"))
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+      .map((file) => path.join(tempDir, file));
+
+    if (pageImages.length === 0) {
+      return performOCR(filePath);
+    }
+
+    const pages: string[] = [];
+    for (let i = 0; i < pageImages.length; i++) {
+      const pageText = await performOCR(pageImages[i]);
+      pages.push(`## Page ${i + 1}\n\n${pageText}`);
+    }
+
+    return pages.join("\n\n").trim();
+  } catch (err) {
+    console.error("[OCR ERROR] Failed to render scanned PDF pages:", err);
+    return performOCR(filePath);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
+/**
+ * Convert extracted document text into plain markdown for storage and AI analysis.
+ */
+export function toPureMarkdown(text: string, sourceName?: string): string {
+  const normalized = text
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .split("\n")
+    .map((line) => line.replace(/\s+/g, " ").trim())
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  if (!normalized) return "";
+
+  const title = sourceName ? `# ${sourceName.replace(/\.[^.]+$/, "")}` : "# Extracted Document";
+  return `${title}\n\n${normalized}`;
 }
 
 /**
