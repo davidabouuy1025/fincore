@@ -1,8 +1,15 @@
 export function detectCompanyName(text: string, fileName: string): string {
-  // Try pattern matching from text
+  // REGEX - Try pattern matching from text
+  // () means Capture Group
+  // '/i' means case-insensitive
+  // '\s' means space bar
+
   const patterns = [
-    /([A-Z0-9\s,&.\-\(\)]+)\s+(SDN\s+BHD|BHD|BERHAD|Sdn\s+Bhd|Sdn\.\s+Bhd\.|Bhd\.)/i,
-    /([A-Z0-9\s,&.\-\(\)]+)\s+(LIMITED|LTD|CORP|INC|HOLDINGS|GROUP)/i,
+    // Local company
+    /([A-Z0-9\s,&.\-\(\)]+)\s+(Sdn\s+Bhd|SDN\s+BHD|Sdn\.\s+Bhd\.|Bhd\.|BHD|BERHAD)/i
+    
+    // International company
+    // , /([A-Z0-9\s,&.\-\(\)]+)\s+(LIMITED|LTD|CORP|INC|HOLDINGS|GROUP)/i,
   ];
 
   for (const p of patterns) {
@@ -19,7 +26,7 @@ export function detectCompanyName(text: string, fileName: string): string {
   // Fallback to cleaning the filename
   let baseName = fileName.replace(/\.[^/.]+$/, ""); // strip extension
   baseName = baseName.replace(/^\d+-/, ""); // strip timestamp prefix e.g. 171822...-
-  baseName = baseName.replace(/_/g, " ");
+  baseName = baseName.replace(/_/g, " "); // strip underscore
   baseName = baseName.replace(/pasted-\d+/i, "PASTED DOCUMENT");
   baseName = baseName.toUpperCase().trim();
   
