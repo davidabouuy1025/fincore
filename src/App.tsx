@@ -7,12 +7,13 @@ import { UploadView } from "./components/UploadView";
 import { DashboardView } from "./components/MatrixView";
 import { ArchiveView } from "./components/ArchiveView";
 import { DocumentViewerOverlay } from "./components/DocumentViewerOverlay";
+import { NewsView } from "./components/NewsView";
 
 export default function App() {
   const [reports, setReports] = useState<CompanyReport[]>([]);
   const [year, setYear] = useState("2025");
   const [sector, setSector] = useState("TECHNOLOGY");
-  const [view, setView] = useState<"upload" | "dashboard" | "archive">("upload");
+  const [view, setView] = useState<"upload" | "dashboard" | "archive" | "news">("upload");
   const [archive, setArchive] = useState<ArchiveEntry[]>([]);
   const [selectedReport, setSelectedReport] = useState<CompanyReport | null>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -368,12 +369,15 @@ export default function App() {
 
       {/* Sidebar */}
       <nav className="fixed left-0 top-0 bottom-0 w-[72px] bg-white border-r border-hacker-border flex flex-col items-center py-8 gap-8 z-50 shadow-sm">
-        <div className="flex flex-col items-center mb-4">
-          <div className="w-10 h-10 border border-hacker-green flex items-center justify-center bg-teal-50/50 rounded-lg">
-            <TrendingUp className="w-5 h-5 text-hacker-green" />
+        <button
+          onClick={() => setView("news")}
+          className={`flex flex-col items-center mb-4 group cursor-pointer transition-all hover:scale-105 ${view === "news" ? "scale-105" : ""}`}
+        >
+          <div className={`w-10 h-10 border flex items-center justify-center rounded-lg transition-all ${view === "news" ? "border-emerald-600 bg-emerald-50 text-emerald-800 animate-pulse" : "border-slate-200 bg-teal-50/20 text-slate-400 group-hover:border-hacker-green group-hover:text-hacker-green"}`}>
+            <TrendingUp className={`w-5 h-5 ${view === "news" ? "text-emerald-700" : "text-slate-400 group-hover:text-hacker-green"}`} />
           </div>
-          <span className="text-[8px] font-bold tracking-[0.3em] mt-2 text-hacker-green-dim">FINCORE</span>
-        </div>
+          <span className={`text-[8px] font-extrabold tracking-[0.3em] mt-2 transition-colors ${view === "news" ? "text-emerald-800" : "text-hacker-green-dim group-hover:text-hacker-green"}`}>CORE</span>
+        </button>
         <NavBtn
           icon={<Plus />}
           label="INGEST"
@@ -456,6 +460,10 @@ export default function App() {
               setView={setView}
               loadReports={loadReports}
             />
+          )}
+
+          {view === "news" && (
+            <NewsView key="news" />
           )}
         </AnimatePresence>
       </main>
