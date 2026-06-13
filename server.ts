@@ -32,6 +32,7 @@ const uploadReports = upload.array("reports");
 
 type FinancialCategory = "incomeStatement" | "balanceSheet" | "cashFlow" | "ratios" | "growth" | "advanced";
 
+// Prepare an empty structure and each field contains 'value' and 'confidence'
 function createEmptyExtractedData() {
   return {
     incomeStatement: {},
@@ -73,7 +74,7 @@ function extractedDataToFinancials(
 async function extractMarkdownFromStoredFile(filePath: string, originalFileName: string, mimetype?: string) {
   let text = "";
   let docType = mimetype?.startsWith("image/") ? "IMAGE" : "DIGITAL_PDF";
-  // console.log("Running extractMarkdownFromStoredFile()")
+  console.log("server.ts - Running extractMarkdownFromStoredFile()")
 
   if (mimetype === "application/pdf" || filePath.toLowerCase().endsWith(".pdf")) {
     const buffer = fs.readFileSync(filePath);
@@ -82,12 +83,20 @@ async function extractMarkdownFromStoredFile(filePath: string, originalFileName:
 
     if (text.trim().length < 200) {
       console.log(`[OCR] Scanned PDF: ${originalFileName}`);
-      text = await performPdfOCR(filePath);
+      try {
+        text = await performPdfOCR(filePath);
+      } catch {
+        // Do nothing
+      }
       docType = "SCANNED_PDF";
     }
   } else {
     console.log(`[OCR] Image: ${originalFileName}`);
-    text = await performOCR(filePath);
+    try {
+      text = await performOCR(filePath);
+    } catch {
+      // Do nothing
+    }
     docType = "IMAGE";
   }
 
