@@ -11,6 +11,7 @@ import dotenv from "dotenv";
 import { FINANCIAL_DICTIONARY } from "./server/dictionary";
 import { extractValue, performOCR, performPdfOCR, toPureMarkdown } from "./server/parser";
 import { detectCompanyName, detectSector, toTitleCase } from "./server/utils";
+import { loadNewsDb, saveNewsDb, crawlKeywordRSS, scrapeArticleText, Article } from "./server/news_service";
 
 dotenv.config();
 
@@ -392,6 +393,118 @@ async function startServer() {
     } catch (err: any) {
       console.error("[ERROR] Save failure:", err);
       console.log(err.stack);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ── GET /api/news/state ──
+  app.get("/api/news/state", (req, res) => {
+    try {
+      const state = loadNewsDb();
+      res.json(state);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ── POST /api/news/keywords ──
+  app.post("/api/news/keywords", (req, res) => {
+    try {
+      const { keywords } = req.body;
+      if (!keywords || !Array.isArray(keywords)) {
+        return res.status(400).json({ error: "Keywords must be an array" });
+      }
+      
+      const state = loadNewsDb();
+      state.keywords = keywords.slice(0, 10); // user can save up to 10 keywords
+      saveNewsDb(state);
+      res.json({ success: true, keywords: state.keywords });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ── POST /api/news/refresh ──
+  app.post("/api/news/refresh", async (req, res) => {
+    try {
+      const state = loadNewsDb();
+      
+      console.log("[NEWS SERVICE] Starting background keyword scrape...");
+      const allNewArticles: Article[] = [];
+      
+      for (const kw of state.keywords) {
+        const results = await crawlKeywordRSS(kw);
+        allNewArticles.push(...results);
+      }
+      
+      const articleMap = new Map<string, Article>();
+      state.articles.forEach(art => articleMap.set(art.id, art));
+      
+      allNewArticles.forEach(art => {
+        const existing = articleMap.get(art.id);
+        if (existing) {
+          const mergedKws = Array.from(new Set([...existing.matchedKeywords, ...art.matchedKeywords]));
+          articleMap.set(art.id, { ...existing, matchedKeywords: mergedKws });
+        } else {
+          articleMap.set(art.id, art);
+        }
+      });
+      
+      state.articles = Array.from(articleMap.values());
+      saveNewsDb(state);
+      
+      res.json({ success: true, articles: state.articles });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ── POST /api/news/click ──
+  app.post("/api/news/click", (req, res) => {
+    try {
+      const { title } = req.body;
+      if (!title) {
+        return res.status(400).json({ error: "No title provided" });
+      }
+      
+      const state = loadNewsDb();
+      if (!state.clicks.includes(title)) {
+        state.clicks.push(title);
+        if (state.clicks.length > 50) {
+          state.clicks.shift();
+        }
+        saveNewsDb(state);
+      }
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ── POST /api/news/scrape-full ──
+  app.post("/api/news/scrape-full", async (req, res) => {
+    try {
+      const { id, url, title } = req.body;
+      if (!url) {
+        return res.status(400).json({ error: "No url provided" });
+      }
+      
+      const state = loadNewsDb();
+      const art = state.articles.find(a => a.id === id);
+      
+      if (art && art.fullContent) {
+        return res.json({ success: true, fullContent: art.fullContent });
+      }
+      
+      const extractedContent = await scrapeArticleText(url, title);
+      
+      if (art) {
+        art.fullContent = extractedContent;
+        saveNewsDb(state);
+      }
+      
+      res.json({ success: true, fullContent: extractedContent });
+    } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
   });
