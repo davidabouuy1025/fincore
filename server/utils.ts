@@ -53,9 +53,9 @@ export function detectSector(text: string, defaultSector = "TECHNOLOGY"): string
   const content = text.toLowerCase();
 
   const sectorKeywords: Record<string, string[]> = {
-    TECHNOLOGY: ["software", "semiconductor", "technology", "hardware", "digital", "data center", "it solutions", "cybersecurity", "telecommunication"],
+    TECHNOLOGY: ["software", "semiconductor", "technology", "hardware", "digital","it solutions", "cybersecurity", "telecommunication"],
     PLANTATION: ["plantation", "palm oil", "oil palm", "agriculture", "rubber", "harvest", "crop"],
-    FINANCIAL_SERVICES: ["banking", "finance", "financial", "insurance", "investment", "takaful", "credit", "asset management"],
+    FINANCIAL_SERVICES: ["banking", "finance", "insurance", "investment", "takaful", "credit", "asset management"],
     CONSUMER_PRODUCTS: ["beverage", "food", "retail", "consumer", "merchandise", "household", "fmcg", "supermarket"],
     INDUSTRIAL_PRODUCTS: ["manufacturing", "chemical", "industrial", "steel", "cement", "engineering", "metal", "plastic"],
     REITS: ["reit", "real estate investment trust", "trust", "rental income", "shopping mall"],
