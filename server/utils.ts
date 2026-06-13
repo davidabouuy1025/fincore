@@ -1,4 +1,4 @@
-export function detect(text: string, fileName: string): string {
+export function detectCompanyName(text: string, fileName: string): string {
   // 1. Pre-clean the text: Split into lines, trim them, and filter out isolated page numbers/headers
   const lines = text
     .split(/\r?\n/)
