@@ -1,6 +1,6 @@
 import Tesseract from "tesseract.js";
-import fs from "fs";
-import os from "os";
+import fs from "fs";  // file system
+import os from "os";  // operating system
 import path from "path";
 import { execFile } from "child_process";
 import { promisify } from "util";
@@ -9,8 +9,10 @@ const execFileAsync = promisify(execFile);
 
 /**
  * Perform optical character recognition on an image file
+ * @param filePath | path of the file uploaded by users
+ * @return result.data.text | text in String format
  */
-export async function performOCR(filePath: string): Promise<string> {
+  export async function performOCR(filePath: string): Promise<string> {
   try {
     const result = await Tesseract.recognize(filePath, "eng");
     return result.data.text || "";
@@ -20,7 +22,13 @@ export async function performOCR(filePath: string): Promise<string> {
   }
 }
 
+/**
+ * 
+ * @param filePath 
+ * @returns text | calls performOCR internally
+ */
 export async function performPdfOCR(filePath: string): Promise<string> {
+  // create a TEMP directory to store each images converted from a PDF
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "fincore-pdf-ocr-"));
   const outputPrefix = path.join(tempDir, "page");
 
@@ -31,6 +39,7 @@ export async function performPdfOCR(filePath: string): Promise<string> {
       await execFileAsync("magick", ["-density", "200", filePath, path.join(tempDir, "page-%d.png")], { timeout: 120000 });
     }
 
+    // Apply numeric sorting for the images
     const pageImages = fs
       .readdirSync(tempDir)
       .filter((file) => file.toLowerCase().endsWith(".png"))
@@ -41,6 +50,7 @@ export async function performPdfOCR(filePath: string): Promise<string> {
       return performOCR(filePath);
     }
 
+    // Run Tesseract on all images and save the texts into pages
     const pages: string[] = [];
     for (let i = 0; i < pageImages.length; i++) {
       const pageText = await performOCR(pageImages[i]);
@@ -52,6 +62,7 @@ export async function performPdfOCR(filePath: string): Promise<string> {
     console.error("[OCR ERROR] Failed to render scanned PDF pages:", err);
     return performOCR(filePath);
   } finally {
+    // Delete the TEMP folder
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 }
