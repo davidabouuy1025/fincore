@@ -43,7 +43,9 @@ export function DocumentCard({
             />
             <div className="flex items-center gap-3 mt-1.5 font-sans">
               <span className="text-[10px] text-slate-400 font-medium">{doc.originalFileName}</span>
-              <span className="text-[9px] font-bold px-2 py-0.5 bg-teal-50 border border-teal-100/50 text-teal-800 rounded">{doc.docType}</span>
+              <span className="text-[9px] font-bold px-2 py-0.5 bg-teal-50 border border-teal-100/50 text-teal-800 rounded">{doc.suggestedCompanyName}</span>
+              <span className="text-[9px] font-bold px-2 py-0.5 bg-orange-50 border border-orange-100/50 text-orange-800 rounded">{doc.suggestedSector}</span>
+              <span className="text-[9px] font-bold px-2 py-0.5 bg-yellow-50 border border-yellow-100/50 text-yellow-800 rounded">{doc.docType}</span>
               <span className="text-[10px] text-slate-400 font-medium opacity-75">{doc.rawTextLength} chars extracted</span>
             </div>
           </div>
