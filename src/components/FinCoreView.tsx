@@ -39,6 +39,59 @@ function safeNum(val: any): number {
   return isNaN(num) ? 0 : num;
 }
 
+interface InteractiveGlitchCardProps {
+  children: React.ReactNode;
+  className?: string;
+  onClick?: () => void;
+  style?: React.CSSProperties;
+}
+
+export function InteractiveGlitchCard({ children, className, onClick, style }: InteractiveGlitchCardProps) {
+  const [coords, setCoords] = useState({ x: 0, y: 0, rx: 0, ry: 0 });
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left - rect.width / 2;
+    const y = e.clientY - rect.top - rect.height / 2;
+    
+    const percentX = x / (rect.width / 2);
+    const percentY = y / (rect.height / 2);
+    
+    const targetX = percentX * 10;
+    const targetY = percentY * 10;
+    
+    const rotateX = -percentY * 8;
+    const rotateY = percentX * 8;
+
+    setCoords({ x: targetX, y: targetY, rx: rotateX, ry: rotateY });
+  };
+
+  const handleMouseLeave = () => {
+    setCoords({ x: 0, y: 0, rx: 0, ry: 0 });
+  };
+
+  return (
+    <div
+      onClick={onClick}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      className={cn(
+        "glitch-hover-effect select-none",
+        className
+      )}
+      style={{
+        ...style,
+        "--x": `${coords.x}px`,
+        "--y": `${coords.y}px`,
+        "--rx": `${coords.rx}deg`,
+        "--ry": `${coords.ry}deg`,
+      } as React.CSSProperties}
+    >
+      {children}
+    </div>
+  );
+}
+
 interface FinCoreViewProps {
   key?: string;
   reports: CompanyReport[];
@@ -656,8 +709,8 @@ export function FinCoreView({
       className="space-y-6 font-sans max-w-7xl mx-auto pb-12"
     >
       {/* Dynamic Sector selection Toggle Row */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-3xs">
-        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2.5 px-1">
+      <div className="bg-white border border-sage-green-750/15 rounded-2xl p-4 shadow-3xs">
+        <span className="text-[9px] font-black text-hunter-green-400 uppercase tracking-widest block mb-2.5 px-1">
           Sector Cohorts Registered in Database
         </span>
         <div className="flex flex-wrap gap-2">
@@ -670,17 +723,17 @@ export function FinCoreView({
                 key={secName}
                 onClick={() => handleSectorToggle(secName)}
                 className={cn(
-                  "px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer relative",
+                  "px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer relative border",
                   isActive 
-                    ? "bg-teal-800 text-white shadow-xs" 
-                    : "bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200"
+                    ? "bg-hunter-green text-white border-hunter-green-600 shadow-xs" 
+                    : "bg-vanilla-cream-900 hover:bg-vanilla-cream-800 text-hunter-green-200 border-vanilla-cream-300"
                 )}
               >
                 <span>{secName.replace(/_/g, " ")}</span>
                 {hasDataInDb && (
                   <span className={cn(
                     "w-1.5 h-1.5 rounded-full",
-                    isActive ? "bg-emerald-400" : "bg-emerald-500"
+                    isActive ? "bg-yellow-green-600" : "bg-sage-green-500"
                   )} />
                 )}
               </button>
@@ -690,19 +743,19 @@ export function FinCoreView({
       </div>
 
       {/* Standard Ledger Context */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between pb-4 border-b border-slate-200 gap-3">
+      <div className="flex flex-col md:flex-row md:items-center justify-between pb-4 border-b border-sage-green-200 gap-3">
         <div>
-          <div className="flex items-center gap-1.5 mb-1 text-teal-800">
-            <ShieldCheck className="w-4 h-4 text-teal-800" />
+          <div className="flex items-center gap-1.5 mb-1 text-hunter-green">
+            <ShieldCheck className="w-4 h-4 text-hunter-green" />
             <span className="text-[10px] font-extrabold tracking-wider uppercase">FinCore™ Hub</span>
           </div>
-          <h1 className="text-lg font-black text-slate-800 tracking-tight">
+          <h1 className="text-lg font-black text-hunter-green-100 tracking-tight">
             Peer Quantitative Matrix (FY{year})
           </h1>
         </div>
 
         {/* Dynamic Target Picker */}
-        <div className="flex items-center gap-1.5 overflow-x-auto bg-slate-50 p-1 rounded-lg border border-slate-200">
+        <div className="flex items-center gap-1.5 overflow-x-auto bg-vanilla-cream-800 p-1 rounded-lg border border-vanilla-cream-700/60">
           {reports.map((r, i) => (
             <button
               key={i}
@@ -710,8 +763,8 @@ export function FinCoreView({
               className={cn(
                 "px-3.5 py-1.5 rounded text-xs font-black transition-all cursor-pointer whitespace-nowrap",
                 activeReportIndex === i 
-                  ? "bg-white text-teal-900 border border-teal-800/15 shadow-2xs" 
-                  : "text-slate-500 hover:text-slate-800"
+                  ? "bg-hunter-green text-white shadow-2xs" 
+                  : "text-hunter-green-400 hover:text-hunter-green"
               )}
             >
               {r.Metadata.CompanyName}
@@ -727,14 +780,14 @@ export function FinCoreView({
         <div className="lg:col-span-7 space-y-4">
           
           {/* STYLISH TAB SEGMENTED CONTROL */}
-          <div className="bg-slate-100 p-1.5 rounded-xl border border-slate-200 flex gap-2">
+          <div className="bg-vanilla-cream-700/40 p-1.5 rounded-xl border border-sage-green-700/10 flex gap-2">
             <button
               onClick={() => handleTabToggle("core8")}
               className={cn(
                 "flex-1 py-2 text-center text-xs font-extrabold transition-all rounded-lg cursor-pointer flex items-center justify-center gap-1.5",
                 activeTab === "core8" 
-                  ? "bg-white text-teal-900 shadow-sm border border-slate-200/50" 
-                  : "text-slate-500 hover:text-slate-800"
+                  ? "bg-white text-hunter-green border border-sage-green-700/20 shadow-xs" 
+                  : "text-hunter-green-400 hover:text-hunter-green"
               )}
             >
               <Layers className="w-3.5 h-3.5" />
@@ -745,8 +798,8 @@ export function FinCoreView({
               className={cn(
                 "flex-1 py-2 text-center text-xs font-extrabold transition-all rounded-lg cursor-pointer flex items-center justify-center gap-1.5",
                 activeTab === "sector" 
-                  ? "bg-white text-teal-900 shadow-sm border border-slate-200/50" 
-                  : "text-slate-500 hover:text-slate-800"
+                  ? "bg-white text-hunter-green border border-sage-green-700/20 shadow-xs" 
+                  : "text-hunter-green-400 hover:text-hunter-green"
               )}
             >
               <TrendingUp className="w-3.5 h-3.5" />
@@ -755,22 +808,22 @@ export function FinCoreView({
           </div>
 
           {/* DYNAMIC LIST */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-4.5 shadow-3xs space-y-3.5">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
-              <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-1.5">
+          <div className="bg-white border border-sage-green-700/15 rounded-2xl p-4.5 shadow-3xs space-y-3.5">
+            <div className="flex justify-between items-center border-b border-vanilla-cream-800 pb-2.5">
+              <h3 className="text-xs font-black text-hunter-green-100 uppercase tracking-widest flex items-center gap-1.5">
                 {activeTab === "core8" ? (
                   <>
-                    <Award className="w-4 h-4 text-teal-850" />
+                    <Award className="w-4 h-4 text-hunter-green" />
                     <span>Sovereign Calculated Aspects (Core 8)</span>
                   </>
                 ) : (
                   <>
-                    <TrendingUp className="w-4 h-4 text-teal-850" />
+                    <TrendingUp className="w-4 h-4 text-hunter-green" />
                     <span>Sector-Sovereign Performance Matrix</span>
                   </>
                 )}
               </h3>
-              <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">
+              <span className="text-[9px] text-sage-green-600 font-bold uppercase tracking-wider">
                 Click aspect to analyze
               </span>
             </div>
@@ -783,37 +836,37 @@ export function FinCoreView({
                   const hasZeroValues = m.baseFields.some(f => getFieldValue(f) === 0);
 
                   return (
-                    <button
+                    <InteractiveGlitchCard
                       key={m.id}
                       onClick={() => setActiveMetricId(m.id)}
                       className={cn(
-                        "p-3 rounded-xl border text-left transition-all flex justify-between items-center cursor-pointer relative overflow-hidden",
+                        "p-3 rounded-xl border text-left flex justify-between items-center cursor-pointer relative overflow-hidden transition-all duration-300",
                         isSelected 
-                          ? "bg-teal-50 border-teal-800/60 shadow-3xs" 
-                          : "bg-white border-slate-200 hover:bg-slate-50"
+                          ? "bg-hunter-green-900/35 border-hunter-green text-hunter-green-100 shadow-xs" 
+                          : "bg-white border-sage-green-800/15 hover:border-sage-green/45 text-slate-800"
                       )}
                     >
                       <div className="max-w-[70%]">
-                        <p className="text-[10px] font-extrabold uppercase tracking-wide text-slate-850 truncate">
+                        <p className="text-[10px] font-extrabold uppercase tracking-wide text-hunter-green-100 truncate">
                           {m.label}
                         </p>
-                        <span className="text-[8px] text-slate-400 font-medium font-mono block truncate">{m.fullName}</span>
+                        <span className="text-[8px] text-hunter-green-400 font-medium font-mono block truncate">{m.fullName}</span>
                       </div>
 
                       <div className="text-right flex items-center gap-1.5">
                         {hasZeroValues && (
-                          <span className="text-[8px] bg-rose-50 text-rose-700 font-extrabold px-1.5 py-0.5 rounded border border-rose-200 tracking-wider uppercase animate-pulse">
+                          <span className="text-[8px] bg-blushed-brick-900 text-blushed-brick font-extrabold px-1.5 py-0.5 rounded border border-blushed-brick-800/40 tracking-wider uppercase animate-pulse">
                             Needs values
                           </span>
                         )}
                         <span className={cn(
                           "text-xs font-black font-mono",
-                          isSelected ? "text-teal-900" : "text-slate-700"
+                          isSelected ? "text-hunter-green-100" : "text-slate-700"
                         )}>
                           {valueOfCompany}
                         </span>
                       </div>
-                    </button>
+                    </InteractiveGlitchCard>
                   );
                 })}
               </div>
@@ -829,32 +882,32 @@ export function FinCoreView({
                   const rating = ratedMatch ? ratedMatch.rating : undefined;
 
                   return (
-                    <button
+                    <InteractiveGlitchCard
                       key={m.id}
                       onClick={() => setActiveMetricId(m.id)}
                       className={cn(
-                        "p-3.5 rounded-xl border text-left transition-all flex justify-between items-center cursor-pointer w-full",
+                        "p-3.5 rounded-xl border text-left flex justify-between items-center cursor-pointer w-full transition-all duration-300",
                         isSelected 
-                          ? "bg-teal-50 border-teal-800/60 shadow-3xs" 
-                          : "bg-white border-slate-200 hover:bg-slate-50"
+                          ? "bg-hunter-green-900/35 border-hunter-green text-hunter-green-100 shadow-xs" 
+                          : "bg-white border-sage-green-800/15 hover:border-sage-green/45 text-slate-800"
                       )}
                     >
                       <div className="flex items-center gap-3">
                         <div className={cn(
                           "w-2 h-2 rounded-full",
-                          isSelected ? "bg-teal-800" : "bg-slate-300"
+                          isSelected ? "bg-hunter-green" : "bg-sage-green-700/30"
                         )} />
                         <div>
-                          <p className="text-[10px] font-extrabold uppercase tracking-wide text-slate-850">
+                          <p className="text-[10px] font-extrabold uppercase tracking-wide text-hunter-green-100">
                             {m.fullName}
                           </p>
-                          <span className="text-[8px] text-slate-400 font-medium font-mono">{m.desc}</span>
+                          <span className="text-[8px] text-hunter-green-400 font-medium font-mono">{m.desc}</span>
                         </div>
                       </div>
 
                       <div className="text-right flex items-center gap-2">
                         {hasZeroValues && (
-                          <span className="text-[8px] bg-rose-50 text-rose-700 font-extrabold px-1.5 py-0.5 rounded border border-rose-200 tracking-wider uppercase">
+                          <span className="text-[8px] bg-blushed-brick-900 text-blushed-brick font-extrabold px-1.5 py-0.5 rounded border border-blushed-brick-800/40 tracking-wider uppercase">
                             Missing Value
                           </span>
                         )}
@@ -862,9 +915,9 @@ export function FinCoreView({
                         {rating && (
                           <span className={cn(
                             "text-[8px] font-extrabold px-1.5 py-0.5 rounded border uppercase",
-                            rating === "Strong" && "bg-emerald-50 text-emerald-700 border-emerald-200",
-                            rating === "Moderate" && "bg-amber-50 text-amber-700 border-amber-200",
-                            rating === "Weak" && "bg-rose-50 text-rose-700 border-rose-200"
+                            rating === "Strong" && "bg-sage-green-950/20 text-hunter-green border-sage-green-600/50",
+                            rating === "Moderate" && "bg-vanilla-cream-500/20 text-vanilla-cream-200 border-vanilla-cream-300",
+                            rating === "Weak" && "bg-blushed-brick-900 text-blushed-brick border-blushed-brick-800/40"
                           )}>
                             {rating}
                           </span>
@@ -872,12 +925,12 @@ export function FinCoreView({
 
                         <span className={cn(
                           "text-xs font-black font-mono px-1.5",
-                          isSelected ? "text-teal-900" : "text-slate-700"
+                          isSelected ? "text-hunter-green-100" : "text-slate-700"
                         )}>
                           {valueOfCompany}
                         </span>
                       </div>
-                    </button>
+                    </InteractiveGlitchCard>
                   );
                 })}
               </div>
@@ -885,26 +938,26 @@ export function FinCoreView({
           </div>
 
           {/* Quick Sector Intelligence Box of the other companies */}
-          <div className="bg-slate-900 text-white rounded-2xl p-4.5 space-y-3">
-            <div className="flex justify-between items-center pb-2 border-b border-white/10">
-              <span className="text-[9px] font-black text-teal-400 uppercase tracking-wider">
+          <div className="bg-hunter-green-100 text-white rounded-2xl p-4.5 space-y-3">
+            <div className="flex justify-between items-center pb-2 border-b border-hunter-green-300">
+              <span className="text-[9px] font-black text-sage-green uppercase tracking-wider">
                 {sector.replace(/_/g, " ")} Summary Scorecard (FY{year})
               </span>
-              <span className="text-[8px] opacity-60 font-mono">Current Cohort</span>
+              <span className="text-[8px] opacity-60 font-mono text-sage-green-900">Current Cohort</span>
             </div>
             
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               <div className="bg-white/5 border border-white/10 rounded-lg p-2.5">
-                <span className="text-[8px] text-slate-400 font-extrabold uppercase block">Company rating</span>
-                <span className="text-xs font-black mt-1 block">{scoring.recommendation}</span>
+                <span className="text-[8px] text-sage-green-700 font-extrabold uppercase block">Company rating</span>
+                <span className="text-xs font-black mt-1 block text-vanilla-cream-500">{scoring.recommendation}</span>
               </div>
               <div className="bg-white/5 border border-white/10 rounded-lg p-2.5">
-                <span className="text-[8px] text-slate-400 font-extrabold uppercase block">Quality Score</span>
-                <span className="text-xs font-black mt-1 block text-emerald-400">{scoring.companyQualityScore}/100</span>
+                <span className="text-[8px] text-sage-green-700 font-extrabold uppercase block">Quality Score</span>
+                <span className="text-xs font-black mt-1 block text-yellow-green-600">{scoring.companyQualityScore}/100</span>
               </div>
               <div className="bg-white/5 border border-white/10 rounded-lg p-2.5">
-                <span className="text-[8px] text-slate-400 font-extrabold uppercase block">Investment score</span>
-                <span className="text-xs font-black mt-1 block text-teal-400">{scoring.investmentQualityScore}/100</span>
+                <span className="text-[8px] text-sage-green-700 font-extrabold uppercase block">Investment score</span>
+                <span className="text-xs font-black mt-1 block text-sage-green">{scoring.investmentQualityScore}/100</span>
               </div>
             </div>
           </div>
@@ -912,62 +965,62 @@ export function FinCoreView({
 
         {/* Right Column: Aspect Explainer & Missing Fields entry form */}
         <div className="lg:col-span-5 space-y-4">
-          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 shadow-3xs space-y-4">
+          <div className="bg-vanilla-cream-900/60 border border-sage-green-700/25 rounded-2xl p-5 shadow-3xs space-y-4">
             
             {/* Aspect Heading */}
             <div>
               <div className="flex items-center gap-1.5">
-                <span className="text-[9px] font-black text-teal-800 bg-teal-50 border border-teal-100 rounded px-2 py-0.5 uppercase tracking-wide">
+                <span className="text-[9px] font-black text-hunter-green-100 bg-sage-green-900 border border-sage-green-700 rounded px-2 py-0.5 uppercase tracking-wide">
                   {currentMetricData.label} Perspective
                 </span>
-                <span className="text-[9px] font-bold text-slate-400 lowercase font-mono">
+                <span className="text-[9px] font-bold text-hunter-green-400 lowercase font-mono">
                   {activeTab === "core8" ? "universal core 8" : "sector matrix metrics"}
                 </span>
               </div>
-              <h2 className="text-sm font-black text-slate-800 mt-2">{currentMetricData.fullName}</h2>
-              <p className="text-[10px] font-mono text-slate-400 mt-0.5">Formula: {currentMetricData.formula}</p>
+              <h2 className="text-sm font-black text-hunter-green-100 mt-2">{currentMetricData.fullName}</h2>
+              <p className="text-[10px] font-mono text-hunter-green-400 mt-0.5">Formula: {currentMetricData.formula}</p>
             </div>
 
             {/* Simplistic Definition */}
-            <p className="text-xs text-slate-600 leading-relaxed bg-white p-3 rounded-xl border border-slate-250/60">
+            <p className="text-xs text-hunter-green-200 leading-relaxed bg-white p-3 rounded-xl border border-sage-green-700/20">
               {currentMetricData.desc}
             </p>
 
             {/* HIGH VS LOW EXPLAINER - What the value tells the user */}
-            <div className="bg-white p-4.5 rounded-xl border border-slate-200 space-y-3.5">
-              <span className="text-[9px] font-extrabold tracking-wider uppercase text-slate-400 block border-b border-slate-100 pb-1.5">
+            <div className="bg-white p-4.5 rounded-xl border border-sage-green-700/25 space-y-3.5">
+              <span className="text-[9px] font-extrabold tracking-wider uppercase text-hunter-green-400 block border-b border-sage-green-200 pb-1.5">
                 Quantitative Significance Guide
               </span>
               
-              <div className="space-y-3 text-xs text-slate-700">
+              <div className="space-y-3 text-xs text-slate-705">
                 <div className="flex gap-2">
-                  <div className="text-emerald-700 font-extrabold shrink-0 px-2 py-0.5 bg-emerald-50 rounded border border-emerald-100/60 text-[9px] uppercase h-fit mt-0.5">
+                  <div className="text-hunter-green font-extrabold shrink-0 px-2 py-0.5 bg-sage-green-900 rounded border border-sage-green-600/30 text-[9px] uppercase h-fit mt-0.5">
                     HIGH
                   </div>
-                  <p className="leading-relaxed font-sans">{currentMetricData.highTells}</p>
+                  <p className="leading-relaxed font-sans text-hunter-green-100">{currentMetricData.highTells}</p>
                 </div>
                 
                 <div className="flex gap-2">
-                  <div className="text-rose-700 font-extrabold shrink-0 px-2 py-0.5 bg-rose-50 rounded border border-rose-100/60 text-[9px] uppercase h-fit mt-0.5">
+                  <div className="text-blushed-brick font-extrabold shrink-0 px-2 py-0.5 bg-blushed-brick-900 rounded border border-blushed-brick-800/40 text-[9px] uppercase h-fit mt-0.5">
                     LOW
                   </div>
-                  <p className="leading-relaxed font-sans">{currentMetricData.lowTells}</p>
+                  <p className="leading-relaxed font-sans text-hunter-green-100">{currentMetricData.lowTells}</p>
                 </div>
               </div>
             </div>
 
             {/* MISSING / ZERO VALUE PROMPTS */}
-            <div className="border-t border-slate-200 pt-3">
+            <div className="border-t border-sage-green-700/20 pt-3">
               {missingFields.length > 0 ? (
-                <div className="space-y-3 bg-rose-50/70 border border-rose-200 p-4 rounded-xl">
-                  <div className="flex items-center gap-1.5 text-rose-800">
-                    <AlertTriangle className="w-4 h-4 text-rose-700 shrink-0" />
+                <div className="space-y-3 bg-blushed-brick-900/65 border border-blushed-brick-800/40 p-4 rounded-xl">
+                  <div className="flex items-center gap-1.5 text-blushed-brick-105">
+                    <AlertTriangle className="w-4 h-4 text-blushed-brick shrink-0" />
                     <span className="text-[10px] font-black uppercase tracking-wider">
                       Required Ledger Input Alert
                     </span>
                   </div>
                   
-                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                  <p className="text-[11px] text-hunter-green-200 leading-relaxed">
                     Some corporate inputs required for this metric are missing or set to 0. Please input the correct values below, or trigger AI extraction to automatically crawl estimated data.
                   </p>
 
@@ -976,7 +1029,7 @@ export function FinCoreView({
                       type="button"
                       onClick={triggerAiBatchExtraction}
                       disabled={isAiExtracting}
-                      className="px-3 py-1.5 bg-slate-900 border border-slate-850 text-white rounded-lg font-bold text-[10px] transition hover:bg-slate-800 inline-flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                      className="px-3 py-1.5 bg-hunter-green border border-hunter-green-600 text-white rounded-lg font-bold text-[10px] transition hover:bg-hunter-green-500 inline-flex items-center gap-1 cursor-pointer disabled:opacity-50"
                     >
                       {isAiExtracting ? (
                         <>
@@ -985,7 +1038,7 @@ export function FinCoreView({
                         </>
                       ) : (
                         <>
-                          <Sparkles className="w-3.5 h-3.5 text-yellow-400" />
+                          <Sparkles className="w-3.5 h-3.5 text-yellow-green-600" />
                           <span>AI Auto-Extract</span>
                         </>
                       )}
@@ -993,17 +1046,17 @@ export function FinCoreView({
                   </div>
                 </div>
               ) : (
-                <div className="bg-emerald-50/50 border border-emerald-250 p-3.5 rounded-xl flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
-                  <p className="text-[10px] font-extrabold text-emerald-800 uppercase tracking-widest">
+                <div className="bg-sage-green-900/40 border border-sage-green-800/30 p-3.5 rounded-xl flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-hunter-green shrink-0" />
+                  <p className="text-[10px] font-extrabold text-hunter-green uppercase tracking-widest">
                     All Required Inputs Verified & Recalculated
                   </p>
                 </div>
               )}
 
               {/* Standard Interactive form to update any/all required core bases */}
-              <form onSubmit={handleValueUpdate} className="mt-4 space-y-3 bg-white border border-slate-200 p-4 rounded-xl">
-                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2 px-1">
+              <form onSubmit={handleValueUpdate} className="mt-4 space-y-3 bg-white border border-sage-green-700/25 p-4 rounded-xl">
+                <span className="text-[9px] font-black text-hunter-green-400 uppercase tracking-widest block mb-2 px-1">
                   Ledger Inputs & Values (MYR '000)
                 </span>
 
@@ -1017,8 +1070,8 @@ export function FinCoreView({
 
                     return (
                       <div key={fMeta.fieldId} className="flex items-center justify-between gap-2.5">
-                        <label className="text-[10px] text-slate-500 font-bold truncate max-w-[200px]" title={fMeta.label}>
-                          {fMeta.label} {isMissing && <span className="text-rose-500 font-extrabold">*</span>}
+                        <label className="text-[10px] text-hunter-green-300 font-bold truncate max-w-[200px]" title={fMeta.label}>
+                          {fMeta.label} {isMissing && <span className="text-blushed-brick font-extrabold">*</span>}
                         </label>
                         <input
                           type="text"
@@ -1026,8 +1079,8 @@ export function FinCoreView({
                           placeholder={isMissing ? "Enter Value" : String(originalValue)}
                           onChange={(e) => setEditingValues(prev => ({ ...prev, [fMeta.fieldId]: e.target.value }))}
                           className={cn(
-                            "w-28 px-2 py-1 text-right text-xs font-mono font-bold rounded-md bg-slate-50 border transition-all focus:bg-white focus:outline-teal-800",
-                            isMissing ? "border-rose-300 text-rose-800 placeholder-rose-300/60 bg-rose-50/30" : "border-slate-200 text-slate-800"
+                            "w-28 px-2 py-1 text-right text-xs font-mono font-bold rounded-md bg-vanilla-cream-900 border transition-all focus:bg-white focus:outline-hunter-green",
+                            isMissing ? "border-blushed-brick-800 text-blushed-brick placeholder-blushed-brick-800/40 bg-blushed-brick-900/40" : "border-sage-green-750/15 text-hunter-green-100"
                           )}
                         />
                       </div>
@@ -1035,11 +1088,11 @@ export function FinCoreView({
                   })}
                 </div>
 
-                <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                <div className="pt-2 border-t border-sage-green-200/20 flex items-center justify-between">
                   <button
                     type="submit"
                     disabled={saveStatus === "saving"}
-                    className="px-3.5 py-1.5 bg-teal-800 hover:bg-teal-900 text-white font-extrabold text-[10px] uppercase tracking-wide rounded-lg inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    className="px-3.5 py-1.5 bg-hunter-green hover:bg-hunter-green-400 text-white font-extrabold text-[10px] uppercase tracking-wide rounded-lg inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                   >
                     {saveStatus === "saving" ? (
                       <>
@@ -1055,12 +1108,12 @@ export function FinCoreView({
                   </button>
 
                   {saveStatus === "success" && (
-                    <span className="text-[9px] text-emerald-700 font-black uppercase tracking-wider animate-pulse">
+                    <span className="text-[9px] text-sage-green font-black uppercase tracking-wider animate-pulse">
                       ✓ Recalculated
                     </span>
                   )}
                   {saveStatus === "error" && (
-                    <span className="text-[9px] text-rose-700 font-black uppercase tracking-wider">
+                    <span className="text-[9px] text-blushed-brick font-black uppercase tracking-wider">
                       ⚠️ Failed
                     </span>
                   )}
