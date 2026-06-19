@@ -1,8 +1,19 @@
 import React from "react";
-import { Edit3, Save, X, Sparkles, Loader2, FilePlus2 } from "lucide-react";
+import { Edit3, Save, X, Sparkles, Loader2, Award, Zap, ShieldCheck } from "lucide-react";
 import { motion } from "motion/react";
 import { CompanyReport, Financials } from "../types";
 import { FIELD_LABELS, CATEGORY_LABELS, formatNum, FINANCIAL_DICTIONARY } from "../constants";
+import { clsx } from "clsx";
+import { twMerge } from "tailwind-merge";
+import {
+  calculateCore8Metrics,
+  calculateSectorMetrics,
+  calculateScoring
+} from "../fincore_engine";
+
+function cn(...inputs: any[]) {
+  return twMerge(clsx(inputs));
+}
 
 interface DocumentViewerOverlayProps {
   report: CompanyReport;
@@ -11,12 +22,9 @@ interface DocumentViewerOverlayProps {
   onStartEdit: () => void;
   editingReport: CompanyReport | null;
   onEditChange: (financials: Financials) => void;
-  onCompanyNameChange: (companyName: string) => void;
   onSaveEdit: () => void;
   onCancelEdit: () => void;
-  onAppendDocuments: (files: File[]) => Promise<void>;
-  isAppendingDocuments?: boolean;
-  onAiReanalyze?: (storedFileName: string, docType: string, markdown?: string) => Promise<void>;
+  onAiReanalyze?: (storedFileName: string, docType: string) => Promise<void>;
   isReanalyzing?: boolean;
 }
 
@@ -27,11 +35,8 @@ export function DocumentViewerOverlay({
   onStartEdit,
   editingReport,
   onEditChange,
-  onCompanyNameChange,
   onSaveEdit,
   onCancelEdit,
-  onAppendDocuments,
-  isAppendingDocuments,
   onAiReanalyze,
   isReanalyzing,
 }: DocumentViewerOverlayProps) {
@@ -57,17 +62,7 @@ export function DocumentViewerOverlay({
       {/* Header */}
       <div className="flex items-center justify-between px-8 py-4 border-b border-slate-200 bg-white flex-shrink-0 shadow-xs">
         <div>
-          {isEditing ? (
-            <input
-              type="text"
-              value={displayReport.Metadata.CompanyName}
-              onChange={(e) => onCompanyNameChange(e.target.value)}
-              className="w-full min-w-[260px] max-w-[520px] bg-white border border-slate-200 rounded-lg px-3 py-2 text-lg font-extrabold text-slate-800 focus:outline-none focus:border-hacker-green focus:ring-1 focus:ring-hacker-green/25"
-              placeholder="Company name"
-            />
-          ) : (
-            <h2 className="text-lg font-extrabold text-slate-800">{displayReport.Metadata.CompanyName}</h2>
-          )}
+          <h2 className="text-lg font-extrabold text-slate-800">{displayReport.Metadata.CompanyName}</h2>
           <p className="text-[10px] text-slate-400 mt-1 font-semibold tracking-wide">
             {displayReport.Metadata.OriginalFileName} // {displayReport.Metadata.DocType} // FY{displayReport.Metadata.FinancialYear}
           </p>
@@ -79,13 +74,7 @@ export function DocumentViewerOverlay({
                 <button
                   type="button"
                   disabled={isReanalyzing}
-                  onClick={() =>
-                    onAiReanalyze(
-                      displayReport.Metadata.StoredFileName!,
-                      displayReport.Metadata.DocType || "DIGITAL_PDF",
-                      displayReport.Markdown?.pureMarkdown || ""
-                    )
-                  }
+                  onClick={() => onAiReanalyze(displayReport.Metadata.StoredFileName!, displayReport.Metadata.DocType || "DIGITAL_PDF")}
                   className="text-[11px] font-bold border border-emerald-200 bg-emerald-50/50 rounded-lg px-4 py-2 flex items-center gap-2 hover:bg-hacker-green hover:text-white hover:border-hacker-green transition-all tracking-wide cursor-pointer disabled:opacity-50 shadow-3xs"
                 >
                   {isReanalyzing ? (
@@ -159,32 +148,6 @@ export function DocumentViewerOverlay({
               <span>You are viewing newly extracted or edited values. Review and click "Save Changes" to commit.</span>
             </div>
           )}
-          {isEditing && (
-            <label className="border border-dashed border-slate-300 bg-white rounded-lg p-3 flex items-center gap-3 text-slate-600 hover:border-hacker-green hover:text-hacker-green transition-all cursor-pointer">
-              {isAppendingDocuments ? (
-                <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
-              ) : (
-                <FilePlus2 className="w-4 h-4 flex-shrink-0" />
-              )}
-              <span className="text-[10px] font-bold tracking-wide">
-                {isAppendingDocuments ? "Parsing added documents..." : "Add missed pages or documents"}
-              </span>
-              <input
-                type="file"
-                multiple
-                accept="application/pdf,image/*"
-                disabled={isAppendingDocuments}
-                className="hidden"
-                onChange={async (e) => {
-                  const files = Array.from(e.target.files || []);
-                  e.target.value = "";
-                  if (files.length > 0) {
-                    await onAppendDocuments(files);
-                  }
-                }}
-              />
-            </label>
-          )}
           <div className="flex items-center justify-between">
             <p className="text-[10px] tracking-wider text-slate-500 font-extrabold uppercase">
               {isEditing ? "Editing Report Fields" : "Extracted Values"}
@@ -193,6 +156,64 @@ export function DocumentViewerOverlay({
               <span className="text-[9px] font-extrabold px-2 py-0.5 bg-amber-100 border border-amber-200/50 text-amber-800 rounded">EDITING</span>
             )}
           </div>
+
+          {!isEditing && (
+            <div className="space-y-4 border-b border-slate-200 pb-5">
+              {(() => {
+                const sectorName = displayReport.Metadata.Sector || "TECHNOLOGY";
+                const scoring = calculateScoring(displayReport, sectorName);
+                const c8 = calculateCore8Metrics(displayReport);
+
+                return (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] uppercase font-extrabold text-slate-450 tracking-wider">Metrics Rating</span>
+                      <span className={cn(
+                        "text-[9px] font-extrabold px-2 py-0.5 rounded border uppercase tracking-wider",
+                        scoring.statusColor === "emerald" && "bg-emerald-50 text-emerald-700 border-emerald-200",
+                        scoring.statusColor === "amber" && "bg-amber-50 text-amber-700 border-amber-200",
+                        scoring.statusColor === "rose" && "bg-rose-50 text-rose-700 border-rose-200"
+                      )}>
+                        {scoring.recommendation}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 bg-white p-2.5 rounded-lg border border-slate-200 text-center shadow-3xs">
+                      <div>
+                        <p className="text-[8px] text-slate-400 font-extrabold uppercase tracking-wider mb-0.5">Quality Score</p>
+                        <p className="text-sm font-black text-slate-800">{scoring.companyQualityScore}<span className="text-[10px] text-slate-400 font-normal">/100</span></p>
+                      </div>
+                      <div className="border-l border-slate-200">
+                        <p className="text-[8px] text-slate-400 font-extrabold uppercase tracking-wider mb-0.5">Invest Rank</p>
+                        <p className="text-sm font-black text-teal-700">{scoring.investmentQualityScore}<span className="text-[10px] text-slate-400 font-normal">/100</span></p>
+                      </div>
+                    </div>
+
+                    {/* Quick Core Metrics list */}
+                    <div className="bg-white/50 border border-slate-250/50 rounded-lg p-2.5 text-[10px] space-y-1.5 font-sans">
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-500 font-medium">ROIC (%)</span>
+                        <span className="font-bold text-teal-800 font-mono">{c8.roic.toFixed(1)}%</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-500 font-medium">FCF Margin (%)</span>
+                        <span className={cn("font-bold font-mono", c8.fcfMargin < 0 ? "text-rose-600" : "text-emerald-700")}>{c8.fcfMargin.toFixed(1)}%</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-500 font-medium">Altman Z-Score</span>
+                        <span className={cn(
+                          "font-bold font-mono px-1 rounded",
+                          c8.altmanZScore >= 2.9 ? "text-emerald-700 bg-emerald-50" : c8.altmanZScore >= 1.2 ? "text-amber-700 bg-amber-50" : "text-rose-700 bg-rose-50"
+                        )}>
+                          {c8.altmanZScore.toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
 
           {(["incomeStatement", "balanceSheet", "cashFlow", "ratios", "growth", "advanced"] as const).map((category) => {
             const data = (displayReport.Financials as any)[category];
