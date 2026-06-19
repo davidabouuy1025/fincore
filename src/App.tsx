@@ -1,19 +1,22 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { TrendingUp, Plus, BarChart3, History } from "lucide-react";
+import { TrendingUp, Plus, BarChart3, History, ShieldCheck, Newspaper } from "lucide-react";
 import { AnimatePresence } from "motion/react";
 import { ParsedDocument, CompanyReport, ArchiveEntry, Financials } from "./types";
 import { NavBtn } from "./components/NavBtn";
 import { UploadView } from "./components/UploadView";
-import { DashboardView } from "./components/MatrixView";
+import { DashboardView } from "./components/DashboardView";
 import { ArchiveView } from "./components/ArchiveView";
 import { DocumentViewerOverlay } from "./components/DocumentViewerOverlay";
 import { NewsView } from "./components/NewsView";
+import { FinCoreView } from "./components/FinCoreView";
+import SplashCursor from "./components/SplashCursor";
+import InteractiveGrid from "./components/InteractiveGrid";
 
 export default function App() {
   const [reports, setReports] = useState<CompanyReport[]>([]);
   const [year, setYear] = useState("2025");
   const [sector, setSector] = useState("TECHNOLOGY");
-  const [view, setView] = useState<"upload" | "dashboard" | "archive" | "news">("upload");
+  const [view, setView] = useState<"upload" | "dashboard" | "archive" | "news" | "fincore">("upload");
   const [archive, setArchive] = useState<ArchiveEntry[]>([]);
   const [selectedReport, setSelectedReport] = useState<CompanyReport | null>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -24,9 +27,8 @@ export default function App() {
   const [isParsing, setIsParsing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [uploadStep, setUploadStep] = useState<"select" | "review">("select");
-  const [useAi, setUseAi] = useState(false); // Choose whether to use AI on Ingest (Highly Recommended)
+  const [useAi, setUseAi] = useState(true); // Choose whether to use AI on Ingest (Highly Recommended)
   const [isReanalyzing, setIsReanalyzing] = useState(false);
-  const [isAppendingDocuments, setIsAppendingDocuments] = useState(false);
 
   // AI insights
   const [aiInsight, setAiInsight] = useState<string | null>(null);
@@ -34,79 +36,6 @@ export default function App() {
 
   // Edit mode for dashboard
   const [editingReport, setEditingReport] = useState<CompanyReport | null>(null);
-
-  const parseFiles = async (files: File[]): Promise<ParsedDocument[]> => {
-    const formData = new FormData();
-    files.forEach((f) => formData.append("reports", f));
-    formData.append("useAi", useAi ? "true" : "false");
-
-    const res = await fetch("/api/parse", { method: "POST", body: formData });
-    const responseText = await res.text();
-    let data: any = {};
-    try {
-      data = responseText ? JSON.parse(responseText) : {};
-    } catch {
-      throw new Error(responseText.slice(0, 300) || "Server returned a non-JSON response");
-    }
-    if (!res.ok) {
-      throw new Error(data.error || "Failed to parse uploaded documents");
-    }
-
-    return (data.parsed || []).map((p: any) => ({
-      ...p,
-      companyName: p.suggestedCompanyName,
-      isExpanded: true,
-    }));
-  };
-
-  const mergeFinancialsWithParsedDocuments = (current: Financials, docs: ParsedDocument[]): Financials => {
-    const merged: Financials = {
-      incomeStatement: { ...current.incomeStatement },
-      balanceSheet: { ...current.balanceSheet },
-      cashFlow: { ...current.cashFlow },
-      ratios: { ...(current.ratios || {}) },
-      growth: { ...(current.growth || {}) },
-      advanced: { ...(current.advanced || {}) },
-    };
-
-    for (const doc of docs) {
-      for (const [category, fields] of Object.entries(doc.extractedData)) {
-        const targetCategory = category as keyof Financials;
-        if (!merged[targetCategory]) {
-          (merged as any)[targetCategory] = {};
-        }
-
-        for (const [fieldId, field] of Object.entries(fields)) {
-          const existingValue = (merged[targetCategory] as any)[fieldId];
-          if ((existingValue === null || existingValue === undefined || existingValue === "") && field.value) {
-            (merged[targetCategory] as any)[fieldId] = field.value;
-          }
-        }
-      }
-    }
-
-    return merged;
-  };
-
-  const appendReportSources = (report: CompanyReport, docs: ParsedDocument[]): CompanyReport => {
-    const existingMarkdown = report.Markdown?.pureMarkdown || "";
-    const newMarkdown = docs.map((doc) => doc.markdown?.pureMarkdown).filter(Boolean).join("\n\n");
-    const originalNames = [
-      report.Metadata.OriginalFileName,
-      ...docs.map((doc) => doc.originalFileName),
-    ].filter(Boolean);
-
-    return {
-      ...report,
-      Metadata: {
-        ...report.Metadata,
-        OriginalFileName: Array.from(new Set(originalNames)).join("; "),
-      },
-      Markdown: {
-        pureMarkdown: [existingMarkdown, newMarkdown].filter(Boolean).join("\n\n"),
-      },
-    };
-  };
 
   const fetchArchive = useCallback(async () => {
     try {
@@ -116,10 +45,6 @@ export default function App() {
     } catch (err) {
       console.error(err);
     }
-  }, []);
-
-  useEffect(() => {
-    console.log("App mounted");
   }, []);
 
   useEffect(() => {
@@ -149,7 +74,7 @@ export default function App() {
     return () => window.removeEventListener("paste", handlePaste);
   }, [view, uploadStep]);
 
-  const loadReports = async (y: string, s: string) => {
+  const loadReports = async (y: string, s: string, overrideView?: "upload" | "dashboard" | "archive" | "news" | "fincore" | "info") => {
     try {
       setAiInsight(null);
       const res = await fetch(`/api/reports/${y}/${s}`);
@@ -158,7 +83,7 @@ export default function App() {
       setReports(arr.filter(Boolean));
       setYear(y);
       setSector(s);
-      setView("dashboard");
+      setView(overrideView || "dashboard");
     } catch (err) {
       console.error(err);
     }
@@ -186,7 +111,7 @@ export default function App() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     console.log("files object:", e.target.files);
     console.log("files length:", e.target.files?.length);
-
+    
     if (e.target.files) {
       const files = Array.from(e.target.files);
 
@@ -211,11 +136,23 @@ export default function App() {
     if (pendingFiles.length === 0) return;
     setIsParsing(true);
 
+    const formData = new FormData();
+    pendingFiles.forEach((f) => formData.append("reports", f));
+    formData.append("useAi", useAi ? "true" : "false");
+
     try {
-      const docs = await parseFiles(pendingFiles);
-      setParsedDocuments(docs);
-      setPendingFiles([]);
-      setUploadStep("review");
+      const res = await fetch("/api/parse", { method: "POST", body: formData });
+      const data = await res.json();
+      if (data.success) {
+        const docs: ParsedDocument[] = data.parsed.map((p: any) => ({
+          ...p,
+          companyName: p.suggestedCompanyName,
+          isExpanded: true,
+        }));
+        setParsedDocuments(docs);
+        setPendingFiles([]);
+        setUploadStep("review");
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -223,13 +160,13 @@ export default function App() {
     }
   };
 
-  const handleAiReanalyze = async (storedFileName: string, docType: string, markdown?: string) => {
+  const handleAiReanalyze = async (storedFileName: string, docType: string) => {
     setIsReanalyzing(true);
     try {
       const res = await fetch("/api/ai-reanalyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ storedFileName, docType, markdown }),
+        body: JSON.stringify({ storedFileName, docType }),
       });
       const data = await res.json();
       if (data.success) {
@@ -254,26 +191,6 @@ export default function App() {
     }
   };
 
-  const handleAppendDocumentsToReport = async (files: File[]) => {
-    const baseReport = editingReport || selectedReport;
-    if (!baseReport || files.length === 0) return;
-
-    setIsAppendingDocuments(true);
-    try {
-      const docs = await parseFiles(files);
-      const reportWithSources = appendReportSources(baseReport, docs);
-      const mergedFinancials = mergeFinancialsWithParsedDocuments(reportWithSources.Financials, docs);
-      setEditingReport({
-        ...reportWithSources,
-        Financials: mergedFinancials,
-      });
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsAppendingDocuments(false);
-    }
-  };
-
   const handleSaveAll = async () => {
     if (parsedDocuments.length === 0) return;
     setIsSaving(true);
@@ -292,7 +209,6 @@ export default function App() {
         storedFileName: doc.storedFileName,
         originalFileName: doc.originalFileName,
         docType: doc.docType,
-        markdown: doc.markdown,
       };
     });
 
@@ -357,20 +273,41 @@ export default function App() {
     setUploadStep("select");
   };
 
+  // Add this hook inside your App component, after state declarations:
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      setMousePos({
+        x: (e.clientX / window.innerWidth - 0.5) * 30,  // -15 to +15px shift
+        y: (e.clientY / window.innerHeight - 0.5) * 30,
+      });
+    };
+    window.addEventListener("mousemove", handleMouseMove);
+    return () => window.removeEventListener("mousemove", handleMouseMove);
+  }, []);
 
   return (
     <div className="min-h-screen bg-hacker-bg text-slate-800 font-sans overflow-x-hidden">
       <div className="scanline" />
 
-      {/* Grid background */}
-      <div className="fixed inset-0 pointer-events-none z-0">
-        <div className="absolute inset-0 opacity-[0.4] bg-[linear-gradient(to_right,#e2e8f0_1px,transparent_1px),linear-gradient(to_bottom,#e2e8f0_1px,transparent_1px)] bg-[size:48px_48px]" />
-      </div>
+      {/* Splash Cursor effect */}
+      <SplashCursor
+        RAINBOW_MODE={false}
+        COLOR="#6a994e"
+        DENSITY_DISSIPATION={4}
+        VELOCITY_DISSIPATION={2.5}
+        SPLAT_RADIUS={0.15}
+        TRANSPARENT={true}
+      />
+
+      {/* Interactive Grid */}
+      <InteractiveGrid />
 
       {/* Sidebar */}
       <nav className="fixed left-0 top-0 bottom-0 w-[72px] bg-white border-r border-hacker-border flex flex-col items-center py-8 gap-8 z-50 shadow-sm">
         <button
-          onClick={() => setView("news")}
+          onClick={() => setView("info")}
           className={`flex flex-col items-center mb-4 group cursor-pointer transition-all hover:scale-105 ${view === "news" ? "scale-105" : ""}`}
         >
           <div className={`w-10 h-10 border flex items-center justify-center rounded-lg transition-all ${view === "news" ? "border-emerald-600 bg-emerald-50 text-emerald-800 animate-pulse" : "border-slate-200 bg-teal-50/20 text-slate-400 group-hover:border-hacker-green group-hover:text-hacker-green"}`}>
@@ -378,6 +315,15 @@ export default function App() {
           </div>
           <span className={`text-[8px] font-extrabold tracking-[0.3em] mt-2 transition-colors ${view === "news" ? "text-emerald-800" : "text-hacker-green-dim group-hover:text-hacker-green"}`}>CORE</span>
         </button>
+        
+        <NavBtn
+          icon={<Newspaper/>}
+          label="NEWS"
+          active={view === "news"}
+          onClick={()=> {
+            setView("news")
+          }}
+        />
         <NavBtn
           icon={<Plus />}
           label="INGEST"
@@ -393,6 +339,12 @@ export default function App() {
           label="MATRIX"
           active={view === "dashboard"}
           onClick={() => setView("dashboard")}
+        />
+        <NavBtn
+          icon={<ShieldCheck />}
+          label="FINCORE"
+          active={view === "fincore"}
+          onClick={() => setView("fincore")}
         />
         <NavBtn
           icon={<History />}
@@ -411,7 +363,7 @@ export default function App() {
         <AnimatePresence mode="wait">
           {view === "upload" && (
             <UploadView
-              key={"upload"}
+              key="upload"
               uploadStep={uploadStep}
               year={year}
               setYear={setYear}
@@ -462,6 +414,19 @@ export default function App() {
             />
           )}
 
+          {view === "fincore" && (
+            <FinCoreView
+              key="fincore"
+              reports={reports}
+              sector={sector}
+              year={year}
+              setView={setView}
+              setSelectedReport={setSelectedReport}
+              archive={archive}
+              loadReports={loadReports}
+            />
+          )}
+
           {view === "news" && (
             <NewsView key="news" />
           )}
@@ -477,22 +442,11 @@ export default function App() {
               setEditingReport(null);
             }}
             isEditing={editingReport !== null}
-            onStartEdit={() => setEditingReport(JSON.parse(JSON.stringify(selectedReport)))}
+            onStartEdit={() => setEditingReport({ ...selectedReport })}
             editingReport={editingReport}
             onEditChange={(financials) => {
               if (editingReport) {
                 setEditingReport({ ...editingReport, Financials: financials });
-              }
-            }}
-            onCompanyNameChange={(companyName) => {
-              if (editingReport) {
-                setEditingReport({
-                  ...editingReport,
-                  Metadata: {
-                    ...editingReport.Metadata,
-                    CompanyName: companyName,
-                  },
-                });
               }
             }}
             onSaveEdit={async () => {
@@ -508,13 +462,11 @@ export default function App() {
                       storedFileName: editingReport.Metadata.StoredFileName,
                       originalFileName: editingReport.Metadata.OriginalFileName,
                       docType: editingReport.Metadata.DocType,
-                      markdown: editingReport.Markdown,
                     }],
                     year: editingReport.Metadata.FinancialYear,
                     sector: editingReport.Metadata.Sector,
                   }),
                 });
-                console.log(res);
                 if (res.ok) {
                   await loadReports(editingReport.Metadata.FinancialYear, editingReport.Metadata.Sector);
                   setSelectedReport(null);
@@ -525,8 +477,6 @@ export default function App() {
               }
             }}
             onCancelEdit={() => setEditingReport(null)}
-            onAppendDocuments={handleAppendDocumentsToReport}
-            isAppendingDocuments={isAppendingDocuments}
             onAiReanalyze={handleAiReanalyze}
             isReanalyzing={isReanalyzing}
           />
