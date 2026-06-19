@@ -84,7 +84,7 @@ export function UploadView({
       </header>
 
       {/* Step indicator */}
-      <div className="flex items-center gap-4 mb-8">
+      <div className="flex items-center gap-4 mb-8 ">
         <StepIndicator step={1} label="UPLOAD FILES" active={uploadStep === "select"} completed={uploadStep === "review"} />
         <div className="flex-1 h-px bg-slate-200" />
         <StepIndicator step={2} label="REVIEW & EDIT" active={uploadStep === "review"} completed={false} />
@@ -131,7 +131,7 @@ export function UploadView({
               onDrop={handleDrop}
               className={cn(
                 "relative border-2 border-dashed rounded-xl p-12 flex flex-col items-center gap-4 transition-all bg-white",
-                dragOver ? "border-hacker-green bg-teal-50/30" : "border-slate-200 hover:border-hacker-green/50 hover:bg-slate-50/50 shadow-xs"
+                dragOver ? "border-hacker-green bg-teal-50/30" : "border-slate-200 hover:border-hacker-green/50 hover:shadow-xs"
               )}
             >
               <input
@@ -140,7 +140,7 @@ export function UploadView({
                 multiple
                 accept="application/pdf, image/*"
                 onChange={handleFileChange}
-                className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                className="absolute inset-0 opacity-0 cursor-pointer z-10 bg-white"
               />
               <Upload className={cn("w-10 h-10 transition-all", dragOver ? "text-hacker-green scale-110" : "text-slate-400")} />
               <div className="text-center pointer-events-none">
@@ -172,7 +172,7 @@ export function UploadView({
           </>
 
           {/* Gemini AI extraction configuration */}
-          <div className="bg-gradient-to-r from-emerald-50/50 to-teal-50/20 border border-emerald-100 p-4 rounded-xl flex items-center justify-between shadow-3xs">
+          <div className="bg-gradient-to-r from-emerald-90/90 to-teal-100/100 border border-emerald-100 p-4 rounded-xl flex items-center justify-between shadow-3xs">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-lg bg-emerald-100/50 flex items-center justify-center text-emerald-700">
                 <Sparkles className="w-4 h-4" />
