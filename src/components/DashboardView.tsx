@@ -70,7 +70,7 @@ export function DashboardView({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="space-y-10 font-sans"
+      className="space-y-10 font-sans p-8 lg:p-12"
     >
       {reports.length === 0 ? (
         <div className="h-[60vh] flex flex-col items-center justify-center gap-6 text-slate-400">

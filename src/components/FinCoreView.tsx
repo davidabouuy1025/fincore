@@ -400,7 +400,7 @@ export function FinCoreView({
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -10 }}
-        className="max-w-4xl mx-auto text-center py-20 font-sans"
+        className="max-w-4xl mx-auto text-center py-20 font-sans p-8 lg:p-12"
       >
         <div className="w-16 h-16 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center mx-auto mb-4">
           <ShieldCheck className="w-8 h-8 text-teal-800" />
@@ -450,7 +450,7 @@ export function FinCoreView({
       id: "roic",
       label: "ROIC",
       fullName: "Return on Invested Capital",
-      formula: "NOPAT / Invested Capital",
+      formula: "(Net Operating Profit After Tax / Invested Capital)",
       desc: "Analyzes profit generation efficiency per dollar of debt and equity invested.",
       highTells: "Elite competitive moat, outstanding pricing power, and peer-to-peer operational leadership.",
       lowTells: "Stressed capital allocation, negative value compounding, or excessive non-producing asset bases.",
@@ -706,7 +706,7 @@ export function FinCoreView({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="space-y-6 font-sans max-w-7xl mx-auto pb-12"
+      className="space-y-6 font-sans max-w-7xl mx-auto pb-12 p-8 lg:p-12"
     >
       {/* Dynamic Sector selection Toggle Row */}
       <div className="bg-white border border-sage-green-750/15 rounded-2xl p-4 shadow-3xs">

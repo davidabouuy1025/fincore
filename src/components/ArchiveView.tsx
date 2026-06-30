@@ -17,7 +17,7 @@ export function ArchiveView({ archive, setView, loadReports }: ArchiveViewProps)
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0 }}
-      className="font-sans animate-none"
+      className="font-sans animate-none p-8 lg:p-12"
     >
       <header className="mb-10 border-b border-slate-200 pb-8">
         <p className="text-[10px] tracking-[0.2em] font-extrabold text-slate-400 uppercase mb-2">Persistent Document Store</p>

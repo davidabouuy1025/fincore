@@ -9,6 +9,8 @@ import { ArchiveView } from "./components/ArchiveView";
 import { DocumentViewerOverlay } from "./components/DocumentViewerOverlay";
 import { NewsView } from "./components/NewsView";
 import { FinCoreView } from "./components/FinCoreView";
+import {InfoView} from "./components/InfoView";
+import { TempView } from "./temp";
 import SplashCursor from "./components/SplashCursor";
 import InteractiveGrid from "./components/InteractiveGrid";
 
@@ -16,7 +18,7 @@ export default function App() {
   const [reports, setReports] = useState<CompanyReport[]>([]);
   const [year, setYear] = useState("2025");
   const [sector, setSector] = useState("TECHNOLOGY");
-  const [view, setView] = useState<"upload" | "dashboard" | "archive" | "news" | "fincore">("upload");
+  const [view, setView] = useState<"upload" | "dashboard" | "archive" | "news" | "fincore" | "info">("info");
   const [archive, setArchive] = useState<ArchiveEntry[]>([]);
   const [selectedReport, setSelectedReport] = useState<CompanyReport | null>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -359,7 +361,7 @@ export default function App() {
         </div>
       </nav>
 
-      <main className="ml-[72px] min-h-screen p-8 lg:p-12 relative z-10">
+      <main className="ml-[72px] min-h-screen relative z-10">
         <AnimatePresence mode="wait">
           {view === "upload" && (
             <UploadView
@@ -429,6 +431,20 @@ export default function App() {
 
           {view === "news" && (
             <NewsView key="news" />
+          )}
+
+          {view === "info" && (
+            <InfoView key="info"/>
+            // <TempView 
+            //   key="info"
+            //   reports={[]}
+            //   sector=""
+            //   year=""
+            //   setView={setView} 
+            //   setSelectedReport={setSelectedReport}
+            //   archive={archive}
+            //   loadReports={loadReports}
+            // />
           )}
         </AnimatePresence>
       </main>

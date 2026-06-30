@@ -71,7 +71,7 @@ export function UploadView({
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0 }}
-      className="max-w-5xl font-sans"
+      className="max-w-5xl font-sans p-8 lg:p-12"
     >
       <header className="mb-10">
         <p className="text-[10px] uppercase tracking-[0.3em] text-hacker-green font-bold mb-2">FINANCIAL INTELLIGENCE SYSTEM</p>

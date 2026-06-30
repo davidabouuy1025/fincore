@@ -367,7 +367,7 @@ export function NewsView() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8 font-sans pb-16 relative">
+    <div className="max-w-6xl mx-auto space-y-8 font-sans pb-16 relative p-8 lg:p-12">
       
       {/* Header and Quick Stats */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-6">
