@@ -9,3 +9,4 @@ venv/
 fincore_db/
 .env
 eng.traineddata
+testing.ts
