@@ -296,7 +296,7 @@ export default function App() {
       {/* Splash Cursor effect */}
       <SplashCursor
         RAINBOW_MODE={false}
-        COLOR="#6a994e"
+        COLOR="var(--color-splash-cursor)"
         DENSITY_DISSIPATION={4}
         VELOCITY_DISSIPATION={2.5}
         SPLAT_RADIUS={0.15}
@@ -310,10 +310,10 @@ export default function App() {
       <nav className="fixed left-0 top-0 bottom-0 w-[72px] bg-white border-r border-hacker-border flex flex-col items-center py-8 gap-8 z-50 shadow-sm">
         <button
           onClick={() => setView("info")}
-          className={`flex flex-col items-center mb-4 group cursor-pointer transition-all hover:scale-105 ${view === "news" ? "scale-105" : ""}`}
+          className={`flex flex-col items-center mb-4 group cursor-pointer transition-all hover:scale-105 ${view === "info" ? "scale-105" : ""}`}
         >
-          <div className={`w-10 h-10 border flex items-center justify-center rounded-lg transition-all ${view === "news" ? "border-emerald-600 bg-emerald-50 text-emerald-800 animate-pulse" : "border-slate-200 bg-teal-50/20 text-slate-400 group-hover:border-hacker-green group-hover:text-hacker-green"}`}>
-            <TrendingUp className={`w-5 h-5 ${view === "news" ? "text-emerald-700" : "text-slate-400 group-hover:text-hacker-green"}`} />
+          <div className={`w-10 h-10 border flex items-center justify-center rounded-lg transition-all ${view === "info" ? "border-emerald-600 bg-emerald-50 text-emerald-800 animate-pulse" : "border-slate-200 bg-teal-50/20 text-slate-400 group-hover:border-hacker-green group-hover:text-hacker-green"}`}>
+            <TrendingUp className={`w-5 h-5 ${view === "info" ? "text-emerald-700" : "text-slate-400 group-hover:text-hacker-green"}`} />
           </div>
           <span className={`text-[8px] font-extrabold tracking-[0.3em] mt-2 transition-colors ${view === "news" ? "text-emerald-800" : "text-hacker-green-dim group-hover:text-hacker-green"}`}>CORE</span>
         </button>

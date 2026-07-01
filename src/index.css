@@ -5,34 +5,63 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
   --font-serif: "Inter", ui-sans-serif, system-ui, sans-serif;
-  
-  /* --- PALETTE DEFINITIONS (Keep your existing color scales exactly as they are) --- */
-  --color-hunter-green: #386641;
-  --color-hunter-green-100: #0b140d;
-  /* ... keep your hunter-green 200-900 ... */
-  --color-sage-green: #6a994e;
-  /* ... keep your sage-green 100-900 ... */
-  --color-vanilla-cream: #f2e8cf;
-  /* ... keep your vanilla-cream 100-900 ... */
+
+  /* Interactive Grid */
+  --color-grid-bg: rgb(252, 250, 245);
+  --color-grid-line: rgb(148, 163, 184);
+  --color-grid-highlight: rgb(197, 199, 199);
+
+  /* Splash Cursor */
+  --color-splash-cursor: rgb(106, 153, 78);
 
   /* --- SEMANTIC ALIASES (The magic mapping) --- */
-  --color-hacker-bg: var(--color-vanilla-cream-900);          /* Light: #fcfaf5 */
-  --color-hacker-text-main: var(--color-hunter-green-100);     /* Light: #0b140d */
-  --color-hacker-text-accent: var(--color-hunter-green);       /* Light: #386641 */
-  --color-hacker-border: var(--color-sage-green-800);          /* Light: #c2d9b5 */
+  --color-hacker-bg: rgb(252, 250, 245);                       /* Light: #fcfaf5 */
+  --color-hacker-text-main: rgb(11, 20, 13);                   /* Light: #0b140d */
+  --color-hacker-text-accent: rgb(56, 102, 65);                /* Light: #386641 */
+  --color-hacker-border: rgb(106, 153, 78);                    /* Light: #c2d9b5 */
   --color-hacker-card-bg: rgba(255, 255, 255, 0.92);
   --color-hacker-card-hover: rgba(255, 255, 255, 0.98);
 }
 
-/* --- DARK MODE SWAP OVERRIDES --- */
-@utility dark {
-  :root & {
-    --color-hacker-bg: var(--color-hunter-green-100);          /* Dark: #0b140d */
-    --color-hacker-text-main: var(--color-vanilla-cream-900);   /* Dark: #fcfaf5 */
-    --color-hacker-text-accent: var(--color-yellow-green);      /* Dark: #a7c957 */
-    --color-hacker-border: var(--color-hunter-green-400);       /* Dark: #2d5234 */
-    --color-hacker-card-bg: rgba(22, 41, 26, 0.6);             /* Semi-transparent dark green */
+@layer base {
+  .dark {
+    /* Theme variable overrides */
+    --color-hacker-bg: var(--color-hunter-green-100);
+    --color-hacker-text-main: rgb(28, 168, 28);
+    --color-hacker-text-accent: rgb(28, 168, 28);
+    --color-hacker-border: var(--color-hunter-green-400);
+    --color-hacker-card-bg: rgba(22, 41, 26, 0.6);
     --color-hacker-card-hover: rgba(34, 61, 39, 0.85);
+
+    /* Interactive Grid */
+    --color-grid-bg: #0b140d;
+    --color-grid-line: #ffffff;
+    --color-grid-highlight: #6a994e;
+  }
+
+  /* Force text elements to respect dark variables */
+  .dark h1,
+  .dark h2,
+  .dark h3 {
+    color: var(--color-hacker-text-main) !important;
+  }
+
+  .dark p,
+  .dark span:not([class*="text-[9px]"]) {
+    color: var(--color-hacker-text-accent) !important;
+  }
+
+  /* Force global layout wrappers and background structures */
+  .dark .min-h-screen,
+  .dark section {
+    background-color: var(--color-hacker-bg) !important;
+  }
+
+  /* Force fix card grids without code modification */
+  .dark div[role="article"] {
+    background-color: var(--color-hacker-card-bg) !important;
+    border-color: var(--color-hacker-border) !important;
+    color: var(--color-hacker-text-main) !important;
   }
 }
 
@@ -111,29 +140,4 @@
 
 .crt-flicker {
   animation: none;
-}
-
-/* Append this directly to your global CSS stylesheet */
-@layer base {
-  .dark {
-    /* Force text elements to respect dark variables */
-    h1, h2, h3 {
-      color: var(--color-hacker-text-main) !important;
-    }
-    p, span:not([class*="text-[9px]"]) {
-      color: var(--color-hacker-text-accent) !important;
-    }
-    
-    /* Force global layout wrappers and background structures */
-    .min-h-screen, section {
-      background-color: var(--color-hacker-bg) !important;
-    }
-
-    /* Force fix card grids without code modification */
-    div[role="article"] {
-      background-color: var(--color-hacker-card-bg) !important;
-      border-color: var(--color-hacker-border) !important;
-      color: var(--color-hacker-text-main) !important;
-    }
-  }
 }

@@ -23,22 +23,37 @@ export default function InteractiveGrid() {
   return (
     <div
       ref={containerRef}
-      className="fixed inset-0 pointer-events-none z-0 overflow-hidden bg-slate-50"
+      className="fixed inset-0 pointer-events-none z-0 overflow-hidden"
       style={
         {
           // Pass mouse coordinates as CSS variables for maximum performance
+          backgroundColor: "var(--color-grid-bg)",
           "--x": `${mousePos.x}px`,
           "--y": `${mousePos.y}px`,
         } as React.CSSProperties
       }
     >
       {/* The base faint grid */}
-      <div className="absolute inset-0 opacity-[0.15] bg-[linear-gradient(to_right,#94a3b8_1px,transparent_1px),linear-gradient(to_bottom,#94a3b8_1px,transparent_1px)] bg-[size:48px_48px]" />
+      <div
+        className="absolute inset-0 opacity-[0.15]"
+        style={{
+          backgroundImage: `
+            linear-gradient(to right, var(--color-grid-line) 1px, transparent 1px),
+            linear-gradient(to bottom, var(--color-grid-line) 1px, transparent 1px)
+          `,
+          backgroundSize: "48px 48px",
+        }}
+      />
 
       {/* The "Attracted" highlighted grid that reveals itself near the cursor */}
       <div
-        className="absolute inset-0 bg-[linear-gradient(to_right,#c5c7c7_1.5px,transparent_1.5px),linear-gradient(to_bottom,#c5c7c7_1.5px,transparent_1.5px)] bg-[size:48px_48px] transition-opacity duration-300"
+        className="absolute inset-0 transition-opacity duration-300"
         style={{
+          backgroundImage: `
+            linear-gradient(to right, var(--color-grid-highlight) 1.5px, transparent 1.5px),
+            linear-gradient(to bottom, var(--color-grid-highlight) 1.5px, transparent 1.5px)
+          `,
+          backgroundSize: "48px 48px",
           maskImage: `radial-gradient(300px circle at var(--x) var(--y), black 0%, transparent 100%)`,
           WebkitMaskImage: `radial-gradient(300px circle at var(--x) var(--y), black 0%, transparent 100%)`,
         }}
