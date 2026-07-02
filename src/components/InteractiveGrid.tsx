@@ -53,7 +53,7 @@ export default function InteractiveGrid() {
             linear-gradient(to right, var(--color-grid-highlight) 1.5px, transparent 1.5px),
             linear-gradient(to bottom, var(--color-grid-highlight) 1.5px, transparent 1.5px)
           `,
-          backgroundSize: "48px 48px",
+          backgroundSize: "40px 40px",
           maskImage: `radial-gradient(300px circle at var(--x) var(--y), black 0%, transparent 100%)`,
           WebkitMaskImage: `radial-gradient(300px circle at var(--x) var(--y), black 0%, transparent 100%)`,
         }}
