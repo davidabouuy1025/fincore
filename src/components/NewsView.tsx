@@ -377,10 +377,12 @@ export function NewsView() {
               Bursa Media Core
             </span>
           </div>
-          <h1 className="text-2xl font-bold font-sans text-slate-800 tracking-tight mt-1.5">
+
+          <h1 className="text-3xl font-bold font-sans text-[var(--color-hacker-black-white)] tracking-tight mt-1.5">
             News Intelligence Dashboard
           </h1>
-          <p className="text-xs text-slate-500 font-medium mt-1">
+          
+          <p className="text-sm text-slate-500 font-medium mt-1">
             Real-time keyword-based news crawling, deduplication, and public aggregation infrastructure.
           </p>
         </div>
@@ -389,9 +391,9 @@ export function NewsView() {
           <button
             onClick={handleRefresh}
             disabled={isRefreshing || isLoadingState}
-            className="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl transition duration-150 disabled:opacity-50 cursor-pointer shadow-3xs"
+            className="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white hover:bg-[var(--color-hacker-text-main)] text-black hover:text-white text-xs font-bold rounded-xl transition duration-150 disabled:opacity-50 cursor-pointer shadow-3xs hover:border-[var(--color-hacker-border-green)] hover:border-2"
           >
-            <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${isRefreshing ? "animate-spin text-emerald-600" : ""}`} />
+            <RefreshCw className={`w-3.5 h-3.5 text-slate-500 hover:text-white ${isRefreshing ? "animate-spin text-emerald-600" : ""}`} />
             {isRefreshing ? "Crawling Feeds..." : "Refresh Feeds"}
           </button>
         </div>
@@ -403,7 +405,10 @@ export function NewsView() {
         <div className="lg:col-span-8 space-y-6">
           
           {/* Main Sorting & Category Tabs */}
-          <div className="bg-white border border-slate-200 p-2 rounded-2xl flex flex-wrap items-center justify-between gap-2 shadow-3xs">
+          <div 
+            className="border p-2 rounded-2xl flex flex-wrap items-center justify-between gap-2 shadow-3xs opacity-100 border border-[var(--color-hacker-border)] hover:border-[var(--color-hacker-border-green)] hover:border-2"
+            style={{backgroundColor: "var(--color-newsview-box-bckgrd)"}}
+          >
             <div className="flex gap-1.5">
               <button
                 onClick={() => {
@@ -520,14 +525,14 @@ export function NewsView() {
 
           {/* Articles Feed */}
           {isLoadingState ? (
-            <div className="bg-white border border-slate-200 p-12 rounded-3xl flex flex-col items-center justify-center text-center">
+            <div className="border p-12 rounded-3xl flex flex-col items-center justify-center text-center" style={{backgroundColor: "var(--color-newsview-box-bckgrd)", borderColor: "var(--color-newsview-box-border)"}}>
               <div className="animate-spin text-emerald-700 mb-3">
                 <RefreshCw className="w-10 h-10" />
               </div>
               <p className="text-xs font-semibold text-slate-500">Loading aggregated feed...</p>
             </div>
           ) : paginatedArticles.length === 0 ? (
-            <div className="bg-white border border-slate-200 p-12 rounded-3xl text-center">
+            <div className="border p-12 rounded-3xl text-center" style={{backgroundColor: "var(--color-newsview-box-bckgrd)", borderColor: "var(--color-hacker-border)"}}>
               <BookOpen className="w-12 h-12 text-slate-300 mx-auto mb-3" />
               <p className="text-sm font-bold text-slate-700">No matching developments found</p>
               <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
@@ -556,13 +561,14 @@ export function NewsView() {
                   <div
                     key={art.id}
                     onClick={() => handleOpenArticle(art)}
-                    className="group bg-white border border-slate-200 hover:border-emerald-200 p-5 rounded-2xl flex flex-col justify-between transition-colors shadow-3xs hover:shadow-2xs cursor-pointer"
+                    className="group border border-[var(--color-newsview-box-border)] p-5 rounded-2xl flex flex-col justify-between transition-colors shadow-3xs hover:shadow-2xs cursor-pointer hover:border-[var(--color-newsview-box-border-hover)] hover:border-2"
+                    style={{backgroundColor: "var(--color-newsview-box-bckgrd)"}}
                   >
                     <div>
                       {/* Meta information and badge */}
                       <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
-                        <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-bold">
-                          <span className="text-slate-800 font-extrabold pr-1.5 border-r border-slate-200">
+                        <div className="flex items-center gap-1.5 text-[10px] text-[var(--color-newsview-box-subdetail)] font-bold">
+                          <span className="text-[var(--color-newsview-box-subdetail)]font-extrabold pr-1.5 border-r border-slate-200">
                             {art.sourceName}
                           </span>
                           <Clock className="w-3.5 h-3.5" />
@@ -594,12 +600,12 @@ export function NewsView() {
                       </div>
 
                       {/* Header Title */}
-                      <h3 className="text-sm font-bold text-slate-800 group-hover:text-emerald-800 transition-colors tracking-tight leading-snug">
+                      <h3 className="text-sm font-bold text-[var(--color-newsview-box-title)] group-hover:text-[var(--color-newsview-box-title-hover)] transition-colors tracking-tight leading-snug">
                         {art.title}
                       </h3>
 
                       {/* Excerpt Summary (10 to 20 words limit) */}
-                      <p className="text-xs text-slate-500 font-medium leading-relaxed mt-2">
+                      <p className="text-xs text-[var(--color-newsview-box-title)] group-hover:text-[var(--color-newsview-box-title-hover)] font-medium leading-relaxed mt-2">
                         {getExcerpt(art.description, art.fullContent)}
                       </p>
                     </div>
@@ -625,7 +631,7 @@ export function NewsView() {
                             ))}
                           </div>
                         ) : (
-                          <div className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-500 hover:text-emerald-700">
+                          <div className="flex items-center gap-1.5 text-[10px] font-semibold text-[var(--color-newsview-box-subdetail)]">
                             <span>Read original source</span>
                             <ExternalLink className="w-3 h-3 text-slate-400" />
                           </div>
@@ -650,9 +656,9 @@ export function NewsView() {
 
           {/* Compact Pagination Controls */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between bg-white border border-slate-200 p-4 rounded-2xl shadow-3xs mt-4">
-              <span className="text-xs text-slate-500 font-medium">
-                Page <strong className="font-extrabold text-slate-700">{currentPage}</strong> of <strong className="font-extrabold text-slate-700">{totalPages}</strong> ({processedArticles.length} items)
+            <div className="flex items-center justify-between bg-[var(--color-hacker-universal-bckgrd)] border border-[var(--color-hacker-border)] p-4 rounded-2xl shadow-3xs mt-4">
+              <span className="text-xs text-[var(--color-hacker-black-white)] font-medium">
+                Page <strong className="font-extrabold text-[var(--color-hacker-black-white)]">{currentPage}</strong> of <strong className="font-extrabold">{totalPages}</strong> ({processedArticles.length} items)
               </span>
               
               <div className="flex gap-2">
@@ -679,27 +685,27 @@ export function NewsView() {
 
         {/* Right Column: Interactive Keyword Management System */}
         <div className="lg:col-span-4 space-y-6">
-          <div className="bg-white border border-slate-200 p-6 rounded-3xl shadow-3xs space-y-4">
+          <div className="bg-[var(--color-hacker-univeresal-bckgrd)] border border-[var(--color-hacker-border)] hover:border-[var(--color-hacker-border-green)] hover:border-2 p-6 rounded-3xl shadow-3xs space-y-4">
             <div>
-              <h2 className="text-xs font-extrabold uppercase text-slate-500 tracking-wider">
+              <h2 className="text-xs font-extrabold uppercase text-[var(--color-hacker-black-white)] tracking-wider">
                 Keyword Management System
               </h2>
-              <p className="text-[10px] text-slate-400 mt-0.5">
+              <p className="text-[10px] text-[var(--color-hacker-black-white)] mt-0.5">
                 Saved keywords drive custom aggregation pipelines and score smart user lists (Max 10).
               </p>
             </div>
 
             {/* Keyword Limits progress bar */}
             <div className="space-y-1">
-              <div className="flex justify-between text-[11px] font-bold text-slate-600">
+              <div className="flex justify-between text-[11px] font-bold text-[var(--color-hacker-black-white)]">
                 <span>Active keywords limit</span>
-                <span className={tempKeywords.length >= 10 ? "text-amber-600" : "text-emerald-700"}>
+                <span className={tempKeywords.length >= 10 ? "text-red-600" : "text-ggreen-700"}>
                   {tempKeywords.length} / 10
                 </span>
               </div>
               <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
                 <div 
-                  className={`h-full transition-all duration-300 ${tempKeywords.length >= 10 ? "bg-amber-500" : "bg-emerald-600 animate-pulse"}`}
+                  className={`h-full transition-all duration-300 ${tempKeywords.length >= 10 ? "bg-red-800" : "bg-green-500 animate-pulse"}`}
                   style={{ width: `${(tempKeywords.length / 10) * 100}%` }}
                 />
               </div>
@@ -734,7 +740,7 @@ export function NewsView() {
                 type="button"
                 onClick={handleAddKeyword}
                 disabled={tempKeywords.length >= 10 || !newKeywordInput.trim()}
-                className="p-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl disabled:opacity-50 transition cursor-pointer"
+                className="p-2 bg-[var(--color-hacker-infoview-logo)] hover:bg-emerald-700 text-white rounded-xl disabled:opacity-50 transition cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
               </button>
@@ -773,8 +779,8 @@ export function NewsView() {
             </button>
           </div>
 
-          <div className="bg-slate-50 border border-slate-200 p-5 rounded-3xl text-slate-500 text-[11px] leading-relaxed select-none">
-            <h4 className="font-extrabold text-slate-700 uppercase tracking-wider mb-2 text-[10px]">
+          <div className="bg-[var(--color-newsview-dedupl-box)] border border-[var(--color-hacker-border)] p-5 rounded-3xl text-[var(--color-hacker-black-white)] text-[11px] leading-relaxed select-none hover:border-[var(--color-hacker-border-green)] hover:border-2">
+            <h4 className="font-extrabold text-[var(--color-hacker-black-white)] uppercase tracking-wider mb-2 text-[15px]">
               Deduplication Protocol
             </h4>
             <p>

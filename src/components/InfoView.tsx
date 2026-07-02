@@ -117,11 +117,11 @@ function MagneticLetter({ char, index }: LetterProps) {
         cursor: "default",
         transformStyle: "preserve-3d",
         color: isNear
-          ? "var(--color-hacker-text-accent)"
-          : "var(--color-hacker-text-main)",
+          ? "var(--color-hacker-infoview-logo-hover)"
+          : "var(--color-hacker-infoview-logo)",
         transition: "color 0.2s ease",
       }}
-      className="select-none"
+      className="infoview-logo select-none"
     >
       {char === " " ? "\u00A0" : char}
     </motion.span>
@@ -160,7 +160,7 @@ function FeatureCard({ f, i, show }: { f: typeof FEATURES[0]; i: number; show: b
         style={{
           position: "absolute",
           top: 0, left: 0, right: 0,
-          height: "2px",
+          height: "4px",
           background: f.accent,
           scaleX: hovered ? 1 : 0,
           transformOrigin: "left",
@@ -181,7 +181,7 @@ function FeatureCard({ f, i, show }: { f: typeof FEATURES[0]; i: number; show: b
         >
           <span style={{
             color: hovered
-              ? "var(--color-hacker-bg)"
+              ? "var(--color-hacker-white-black)"
               : "var(--color-hacker-text-accent)", 
             transition: "color 0.25s ease" }}>
           {f.icon}
@@ -310,7 +310,7 @@ export function InfoView() {
         <motion.div
           initial={{ opacity: 0, y: 6 }}
           animate={showScroll ? { opacity: 1, y: 0 } : {}}
-          transition={{ duration: 0.5 }}
+          transition={{ duration: 0.25 }}
           className="mt-10 flex flex-col items-center gap-1.5"
           aria-hidden="true"
         >
@@ -335,7 +335,10 @@ export function InfoView() {
         className="border-y mx-6 sm:mx-10 lg:mx-16 mb-14"
         aria-label="Key statistics"
       >
-        <div className="grid grid-cols-3 divide-x divide-[var(--color-hacker-border)]">
+        <div 
+          className="grid grid-cols-3 divide-x divide-[var(--color-hacker-border)]" 
+          style={{background:"var(--color-hacker-bg)"}}
+        >
           {[
             { value: "10+", label: "Document formats" },
             { value: "AI", label: "Powered extraction" },
