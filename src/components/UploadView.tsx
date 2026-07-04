@@ -330,7 +330,7 @@ export function UploadView({
             <button
               onClick={handleSaveAll}
               disabled={isSaving || parsedDocuments.length === 0}
-              className="flex-1 bg-hacker-green text-white font-bold py-3.5 rounded-lg text-sm tracking-[0.2em] flex items-center justify-center gap-3 hover:bg-teal-800 disabled:bg-slate-200 disabled:text-slate-400 transition-all disabled:opacity-70 disabled:cursor-not-allowed shadow-xs cursor-pointer"
+              className="flex-1 bg-teal-600 text-white font-bold py-3.5 rounded-lg text-sm tracking-[0.2em] flex items-center justify-center gap-3 hover:bg-teal-800 disabled:text-slate-400 transition-all disabled:opacity-70 disabled:cursor-not-allowed shadow-xs cursor-pointer"
             >
               {isSaving ? (
                 <><Loader2 className="w-4 h-4 animate-spin" /> SAVING DATA TO DATABASE...</>

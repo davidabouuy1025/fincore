@@ -107,7 +107,7 @@ export function DocumentViewerOverlay({
               </button>
               <button
                 onClick={onSaveEdit}
-                className="text-[11px] font-bold bg-hacker-green text-white rounded-lg px-4 py-2 flex items-center gap-2 hover:bg-teal-800 transition-all cursor-pointer shadow-xs"
+                className="text-[11px] font-bold bg-hacker-green text-[var(--color-hacker-black-white)] rounded-lg px-4 py-2 flex items-center gap-2 hover:bg-[var(--color-hacker-text-main)] transition-all cursor-pointer shadow-xs"
               >
                 <Save className="w-3.5 h-3.5" /> Save Changes
               </button>

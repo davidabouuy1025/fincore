@@ -402,17 +402,17 @@ export function FinCoreView({
         exit={{ opacity: 0, y: -10 }}
         className="max-w-4xl mx-auto text-center py-20 font-sans p-8 lg:p-12"
       >
-        <div className="w-16 h-16 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center mx-auto mb-4">
-          <ShieldCheck className="w-8 h-8 text-teal-800" />
+        <div className="w-16 h-16 rounded-full bg-slate-50 dark:bg-hacker-card-bg border border-slate-200 dark:border-hacker-border-green flex items-center justify-center mx-auto mb-4">
+          <ShieldCheck className="w-8 h-8 text-teal-800 dark:text-hacker-text-accent" />
         </div>
-        <h2 className="text-base font-bold text-slate-800">No Corporate Dataset Loaded</h2>
-        <p className="text-xs text-slate-400 mt-2 max-w-sm mx-auto leading-relaxed">
-          Please upload corporate reports under the <strong className="text-teal-850">INGEST</strong> tab, select dynamic databases in the archives, or toggle sectors below to initialize the FinCore Brain.
+        <h2 className="text-base font-bold text-slate-800 dark:text-hacker-text-main">No Corporate Dataset Loaded</h2>
+        <p className="text-xs text-slate-400 dark:text-hacker-text-submain mt-2 max-w-sm mx-auto leading-relaxed">
+          Please upload corporate reports under the <strong className="text-teal-850 dark:text-hacker-text-accent">INGEST</strong> tab, select dynamic databases in the archives, or toggle sectors below to initialize the FinCore Brain.
         </p>
 
         {/* Instant Sector Select grid to fetch data */}
         <div className="mt-8 max-w-lg mx-auto">
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Load Existing DB Sectors Directly</p>
+          <p className="text-[10px] font-black text-slate-400 dark:text-hacker-text-submain uppercase tracking-widest mb-3">Load Existing DB Sectors Directly</p>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {availableSectors.map((secName) => {
               const hasData = archive.some(a => a.sectors.includes(secName));
@@ -423,8 +423,8 @@ export function FinCoreView({
                   className={cn(
                     "p-2.5 rounded-lg border text-xs font-bold transition-all text-center flex flex-col justify-center items-center gap-1 cursor-pointer",
                     hasData 
-                      ? "bg-teal-50/50 border-teal-200 hover:bg-teal-50 text-teal-900" 
-                      : "bg-slate-50 border-slate-200 text-slate-400 hover:bg-slate-100"
+                      ? "bg-teal-50/50 dark:bg-hacker-card-hover border-teal-200 dark:border-hacker-border-green hover:bg-teal-50 dark:hover:bg-hacker-card-bg text-teal-900 dark:text-hacker-text-accent" 
+                      : "bg-slate-50 dark:bg-hacker-universal-bckgrd border-slate-200 dark:border-hacker-border text-slate-400 dark:text-hacker-text-submain hover:bg-slate-100 dark:hover:bg-hacker-card-hover"
                   )}
                 >
                   <span className="truncate max-w-full font-extrabold">{secName.replace(/_/g, " ")}</span>
@@ -709,8 +709,8 @@ export function FinCoreView({
       className="space-y-6 font-sans max-w-7xl mx-auto pb-12 p-8 lg:p-12"
     >
       {/* Dynamic Sector selection Toggle Row */}
-      <div className="bg-white border border-sage-green-750/15 rounded-2xl p-4 shadow-3xs">
-        <span className="text-[9px] font-black text-hunter-green-400 uppercase tracking-widest block mb-2.5 px-1">
+      <div className="bg-white dark:bg-hacker-card-bg border border-sage-green-750/15 dark:border-hacker-border rounded-2xl p-4 shadow-3xs">
+        <span className="text-[9px] font-black text-hunter-green-400 dark:text-hacker-text-submain uppercase tracking-widest block mb-2.5 px-1">
           Sector Cohorts Registered in Database
         </span>
         <div className="flex flex-wrap gap-2">
@@ -725,15 +725,15 @@ export function FinCoreView({
                 className={cn(
                   "px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer relative border",
                   isActive 
-                    ? "bg-hunter-green text-white border-hunter-green-600 shadow-xs" 
-                    : "bg-vanilla-cream-900 hover:bg-vanilla-cream-800 text-hunter-green-200 border-vanilla-cream-300"
+                    ? "bg-hunter-green text-white border-hunter-green-600 dark:border-hacker-border-green shadow-xs" 
+                    : "bg-vanilla-cream-900 dark:bg-hacker-universal-bckgrd hover:bg-vanilla-cream-800 dark:hover:bg-hacker-card-hover text-hunter-green-200 dark:text-hacker-text-submain border-vanilla-cream-300 dark:border-hacker-border"
                 )}
               >
                 <span>{secName.replace(/_/g, " ")}</span>
                 {hasDataInDb && (
                   <span className={cn(
                     "w-1.5 h-1.5 rounded-full",
-                    isActive ? "bg-yellow-green-600" : "bg-sage-green-500"
+                    isActive ? "bg-yellow-green-600 dark:bg-hacker-text-accent" : "bg-sage-green-500 dark:bg-hacker-border-green"
                   )} />
                 )}
               </button>
@@ -743,19 +743,19 @@ export function FinCoreView({
       </div>
 
       {/* Standard Ledger Context */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between pb-4 border-b border-sage-green-200 gap-3">
+      <div className="flex flex-col md:flex-row md:items-center justify-between pb-4 border-b border-sage-green-200 dark:border-hacker-border-green gap-3">
         <div>
-          <div className="flex items-center gap-1.5 mb-1 text-hunter-green">
-            <ShieldCheck className="w-4 h-4 text-hunter-green" />
+          <div className="flex items-center gap-1.5 mb-1 text-hunter-green dark:text-hacker-text-accent">
+            <ShieldCheck className="w-4 h-4 text-hunter-green dark:text-hacker-text-accent" />
             <span className="text-[10px] font-extrabold tracking-wider uppercase">FinCore™ Hub</span>
           </div>
-          <h1 className="text-lg font-black text-hunter-green-100 tracking-tight">
+          <h1 className="text-lg font-black text-hunter-green-100 dark:text-hacker-text-main tracking-tight">
             Peer Quantitative Matrix (FY{year})
           </h1>
         </div>
 
         {/* Dynamic Target Picker */}
-        <div className="flex items-center gap-1.5 overflow-x-auto bg-vanilla-cream-800 p-1 rounded-lg border border-vanilla-cream-700/60">
+        <div className="flex items-center gap-1.5 overflow-x-auto bg-vanilla-cream-800 dark:bg-hacker-card-bg p-1 rounded-lg border border-vanilla-cream-700/60 dark:border-hacker-border">
           {reports.map((r, i) => (
             <button
               key={i}
@@ -764,7 +764,7 @@ export function FinCoreView({
                 "px-3.5 py-1.5 rounded text-xs font-black transition-all cursor-pointer whitespace-nowrap",
                 activeReportIndex === i 
                   ? "bg-hunter-green text-white shadow-2xs" 
-                  : "text-hunter-green-400 hover:text-hunter-green"
+                  : "text-hunter-green-400 dark:text-hacker-text-submain hover:text-hunter-green dark:hover:text-hacker-text-main"
               )}
             >
               {r.Metadata.CompanyName}
@@ -780,14 +780,14 @@ export function FinCoreView({
         <div className="lg:col-span-7 space-y-4">
           
           {/* STYLISH TAB SEGMENTED CONTROL */}
-          <div className="bg-vanilla-cream-700/40 p-1.5 rounded-xl border border-sage-green-700/10 flex gap-2">
+          <div className="bg-vanilla-cream-700/40 dark:bg-hacker-card-hover p-1.5 rounded-xl border border-sage-green-700/10 dark:border-hacker-border flex gap-2">
             <button
               onClick={() => handleTabToggle("core8")}
               className={cn(
                 "flex-1 py-2 text-center text-xs font-extrabold transition-all rounded-lg cursor-pointer flex items-center justify-center gap-1.5",
                 activeTab === "core8" 
-                  ? "bg-white text-hunter-green border border-sage-green-700/20 shadow-xs" 
-                  : "text-hunter-green-400 hover:text-hunter-green"
+                  ? "bg-white dark:bg-hacker-card-bg text-hunter-green dark:text-hacker-text-accent border border-sage-green-700/20 dark:border-hacker-border-green shadow-xs" 
+                  : "text-hunter-green-400 dark:text-hacker-text-submain hover:text-hunter-green dark:hover:text-hacker-text-main"
               )}
             >
               <Layers className="w-3.5 h-3.5" />
@@ -798,8 +798,8 @@ export function FinCoreView({
               className={cn(
                 "flex-1 py-2 text-center text-xs font-extrabold transition-all rounded-lg cursor-pointer flex items-center justify-center gap-1.5",
                 activeTab === "sector" 
-                  ? "bg-white text-hunter-green border border-sage-green-700/20 shadow-xs" 
-                  : "text-hunter-green-400 hover:text-hunter-green"
+                  ? "bg-white dark:bg-hacker-card-bg text-hunter-green dark:text-hacker-text-accent border border-sage-green-700/20 dark:border-hacker-border-green shadow-xs" 
+                  : "text-hunter-green-400 dark:text-hacker-text-submain hover:text-hunter-green dark:hover:text-hacker-text-main"
               )}
             >
               <TrendingUp className="w-3.5 h-3.5" />
@@ -808,22 +808,22 @@ export function FinCoreView({
           </div>
 
           {/* DYNAMIC LIST */}
-          <div className="bg-white border border-sage-green-700/15 rounded-2xl p-4.5 shadow-3xs space-y-3.5">
-            <div className="flex justify-between items-center border-b border-vanilla-cream-800 pb-2.5">
-              <h3 className="text-xs font-black text-hunter-green-100 uppercase tracking-widest flex items-center gap-1.5">
+          <div className="bg-white dark:bg-hacker-card-bg border border-sage-green-700/15 dark:border-hacker-border rounded-2xl p-4.5 shadow-3xs space-y-3.5">
+            <div className="flex justify-between items-center border-b border-vanilla-cream-800 dark:border-hacker-border pb-2.5">
+              <h3 className="text-xs font-black text-hunter-green-100 dark:text-hacker-text-main uppercase tracking-widest flex items-center gap-1.5">
                 {activeTab === "core8" ? (
                   <>
-                    <Award className="w-4 h-4 text-hunter-green" />
+                    <Award className="w-4 h-4 text-hunter-green dark:text-hacker-text-accent" />
                     <span>Sovereign Calculated Aspects (Core 8)</span>
                   </>
                 ) : (
                   <>
-                    <TrendingUp className="w-4 h-4 text-hunter-green" />
+                    <TrendingUp className="w-4 h-4 text-hunter-green dark:text-hacker-text-accent" />
                     <span>Sector-Sovereign Performance Matrix</span>
                   </>
                 )}
               </h3>
-              <span className="text-[9px] text-sage-green-600 font-bold uppercase tracking-wider">
+              <span className="text-[9px] text-sage-green-600 dark:text-hacker-text-submain font-bold uppercase tracking-wider">
                 Click aspect to analyze
               </span>
             </div>
@@ -842,26 +842,26 @@ export function FinCoreView({
                       className={cn(
                         "p-3 rounded-xl border text-left flex justify-between items-center cursor-pointer relative overflow-hidden transition-all duration-300",
                         isSelected 
-                          ? "bg-hunter-green-900/35 border-hunter-green text-hunter-green-100 shadow-xs" 
-                          : "bg-white border-sage-green-800/15 hover:border-sage-green/45 text-slate-800"
+                          ? "bg-hunter-green-900/35 dark:bg-hacker-text-accent/15 border-hunter-green dark:border-hacker-border-green text-hunter-green-100 dark:text-hacker-text-main shadow-xs" 
+                          : "bg-white dark:bg-hacker-universal-bckgrd border-sage-green-800/15 dark:border-hacker-border hover:border-sage-green/45 dark:hover:border-hacker-border-green text-slate-800 dark:text-hacker-text-main"
                       )}
                     >
                       <div className="max-w-[70%]">
-                        <p className="text-[10px] font-extrabold uppercase tracking-wide text-hunter-green-100 truncate">
+                        <p className="text-[10px] font-extrabold uppercase tracking-wide text-hunter-green-100 dark:text-hacker-text-main truncate">
                           {m.label}
                         </p>
-                        <span className="text-[8px] text-hunter-green-400 font-medium font-mono block truncate">{m.fullName}</span>
+                        <span className="text-[8px] text-hunter-green-400 dark:text-hacker-text-submain font-medium font-mono block truncate">{m.fullName}</span>
                       </div>
 
                       <div className="text-right flex items-center gap-1.5">
                         {hasZeroValues && (
-                          <span className="text-[8px] bg-blushed-brick-900 text-blushed-brick font-extrabold px-1.5 py-0.5 rounded border border-blushed-brick-800/40 tracking-wider uppercase animate-pulse">
+                          <span className="text-[8px] bg-blushed-brick-900 dark:bg-red-950/40 text-blushed-brick dark:text-red-400 font-extrabold px-1.5 py-0.5 rounded border border-blushed-brick-800/40 dark:border-red-900/50 tracking-wider uppercase animate-pulse">
                             Needs values
                           </span>
                         )}
                         <span className={cn(
                           "text-xs font-black font-mono",
-                          isSelected ? "text-hunter-green-100" : "text-slate-700"
+                          isSelected ? "text-hunter-green-100 dark:text-hacker-text-main" : "text-slate-700 dark:text-hacker-text-submain"
                         )}>
                           {valueOfCompany}
                         </span>
@@ -888,26 +888,26 @@ export function FinCoreView({
                       className={cn(
                         "p-3.5 rounded-xl border text-left flex justify-between items-center cursor-pointer w-full transition-all duration-300",
                         isSelected 
-                          ? "bg-hunter-green-900/35 border-hunter-green text-hunter-green-100 shadow-xs" 
-                          : "bg-white border-sage-green-800/15 hover:border-sage-green/45 text-slate-800"
+                          ? "bg-hunter-green-900/35 dark:bg-hacker-text-accent/15 border-hunter-green dark:border-hacker-border-green text-hunter-green-100 dark:text-hacker-text-main shadow-xs" 
+                          : "bg-white dark:bg-hacker-universal-bckgrd border-sage-green-800/15 dark:border-hacker-border hover:border-sage-green/45 dark:hover:border-hacker-border-green text-slate-800 dark:text-hacker-text-main"
                       )}
                     >
                       <div className="flex items-center gap-3">
                         <div className={cn(
                           "w-2 h-2 rounded-full",
-                          isSelected ? "bg-hunter-green" : "bg-sage-green-700/30"
+                          isSelected ? "bg-hunter-green dark:bg-hacker-text-accent" : "bg-sage-green-700/30 dark:bg-hacker-border"
                         )} />
                         <div>
-                          <p className="text-[10px] font-extrabold uppercase tracking-wide text-hunter-green-100">
+                          <p className="text-[10px] font-extrabold uppercase tracking-wide text-hunter-green-100 dark:text-hacker-text-main">
                             {m.fullName}
                           </p>
-                          <span className="text-[8px] text-hunter-green-400 font-medium font-mono">{m.desc}</span>
+                          <span className="text-[8px] text-hunter-green-400 dark:text-hacker-text-submain font-medium font-mono">{m.desc}</span>
                         </div>
                       </div>
 
                       <div className="text-right flex items-center gap-2">
                         {hasZeroValues && (
-                          <span className="text-[8px] bg-blushed-brick-900 text-blushed-brick font-extrabold px-1.5 py-0.5 rounded border border-blushed-brick-800/40 tracking-wider uppercase">
+                          <span className="text-[8px] bg-blushed-brick-900 dark:bg-red-950/40 text-blushed-brick dark:text-red-400 font-extrabold px-1.5 py-0.5 rounded border border-blushed-brick-800/40 dark:border-red-900/50 tracking-wider uppercase">
                             Missing Value
                           </span>
                         )}
@@ -915,9 +915,9 @@ export function FinCoreView({
                         {rating && (
                           <span className={cn(
                             "text-[8px] font-extrabold px-1.5 py-0.5 rounded border uppercase",
-                            rating === "Strong" && "bg-sage-green-950/20 text-hunter-green border-sage-green-600/50",
-                            rating === "Moderate" && "bg-vanilla-cream-500/20 text-vanilla-cream-200 border-vanilla-cream-300",
-                            rating === "Weak" && "bg-blushed-brick-900 text-blushed-brick border-blushed-brick-800/40"
+                            rating === "Strong" && "bg-sage-green-950/20 dark:bg-hacker-text-accent/10 text-hunter-green dark:text-hacker-text-accent border-sage-green-600/50 dark:border-hacker-border-green",
+                            rating === "Moderate" && "bg-vanilla-cream-500/20 dark:bg-hacker-card-hover text-vanilla-cream-200 dark:text-hacker-text-submain border-vanilla-cream-300 dark:border-hacker-border",
+                            rating === "Weak" && "bg-blushed-brick-900 dark:bg-red-950/40 text-blushed-brick dark:text-red-400 border-blushed-brick-800/40 dark:border-red-900/50"
                           )}>
                             {rating}
                           </span>
@@ -925,7 +925,7 @@ export function FinCoreView({
 
                         <span className={cn(
                           "text-xs font-black font-mono px-1.5",
-                          isSelected ? "text-hunter-green-100" : "text-slate-700"
+                          isSelected ? "text-hunter-green-100 dark:text-hacker-text-main" : "text-slate-700 dark:text-hacker-text-submain"
                         )}>
                           {valueOfCompany}
                         </span>
@@ -938,26 +938,26 @@ export function FinCoreView({
           </div>
 
           {/* Quick Sector Intelligence Box of the other companies */}
-          <div className="bg-hunter-green-100 text-white rounded-2xl p-4.5 space-y-3">
-            <div className="flex justify-between items-center pb-2 border-b border-hunter-green-300">
-              <span className="text-[9px] font-black text-sage-green uppercase tracking-wider">
+          <div className="bg-hunter-green-100 dark:bg-hacker-card-bg text-white dark:text-hacker-text-main rounded-2xl p-4.5 space-y-3 dark:border dark:border-hacker-border-green">
+            <div className="flex justify-between items-center pb-2 border-b border-hunter-green-300 dark:border-hacker-border">
+              <span className="text-[9px] font-black text-sage-green dark:text-hacker-text-accent uppercase tracking-wider">
                 {sector.replace(/_/g, " ")} Summary Scorecard (FY{year})
               </span>
-              <span className="text-[8px] opacity-60 font-mono text-sage-green-900">Current Cohort</span>
+              <span className="text-[8px] opacity-60 font-mono text-sage-green-900 dark:text-hacker-text-submain">Current Cohort</span>
             </div>
             
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              <div className="bg-white/5 border border-white/10 rounded-lg p-2.5">
-                <span className="text-[8px] text-sage-green-700 font-extrabold uppercase block">Company rating</span>
-                <span className="text-xs font-black mt-1 block text-vanilla-cream-500">{scoring.recommendation}</span>
+              <div className="bg-white/5 dark:bg-hacker-card-hover border border-white/10 dark:border-hacker-border rounded-lg p-2.5">
+                <span className="text-[8px] text-sage-green-700 dark:text-hacker-text-submain font-extrabold uppercase block">Company rating</span>
+                <span className="text-xs font-black mt-1 block text-vanilla-cream-500 dark:text-hacker-text-main">{scoring.recommendation}</span>
               </div>
-              <div className="bg-white/5 border border-white/10 rounded-lg p-2.5">
-                <span className="text-[8px] text-sage-green-700 font-extrabold uppercase block">Quality Score</span>
-                <span className="text-xs font-black mt-1 block text-yellow-green-600">{scoring.companyQualityScore}/100</span>
+              <div className="bg-white/5 dark:bg-hacker-card-hover border border-white/10 dark:border-hacker-border rounded-lg p-2.5">
+                <span className="text-[8px] text-sage-green-700 dark:text-hacker-text-submain font-extrabold uppercase block">Quality Score</span>
+                <span className="text-xs font-black mt-1 block text-yellow-green-600 dark:text-hacker-text-accent">{scoring.companyQualityScore}/100</span>
               </div>
-              <div className="bg-white/5 border border-white/10 rounded-lg p-2.5">
-                <span className="text-[8px] text-sage-green-700 font-extrabold uppercase block">Investment score</span>
-                <span className="text-xs font-black mt-1 block text-sage-green">{scoring.investmentQualityScore}/100</span>
+              <div className="bg-white/5 dark:bg-hacker-card-hover border border-white/10 dark:border-hacker-border rounded-lg p-2.5">
+                <span className="text-[8px] text-sage-green-700 dark:text-hacker-text-submain font-extrabold uppercase block">Investment score</span>
+                <span className="text-xs font-black mt-1 block text-sage-green dark:text-hacker-text-accent">{scoring.investmentQualityScore}/100</span>
               </div>
             </div>
           </div>
@@ -965,62 +965,62 @@ export function FinCoreView({
 
         {/* Right Column: Aspect Explainer & Missing Fields entry form */}
         <div className="lg:col-span-5 space-y-4">
-          <div className="bg-vanilla-cream-900/60 border border-sage-green-700/25 rounded-2xl p-5 shadow-3xs space-y-4">
+          <div className="bg-vanilla-cream-900/60 dark:bg-hacker-card-bg border border-sage-green-700/25 dark:border-hacker-border rounded-2xl p-5 shadow-3xs space-y-4">
             
             {/* Aspect Heading */}
             <div>
               <div className="flex items-center gap-1.5">
-                <span className="text-[9px] font-black text-hunter-green-100 bg-sage-green-900 border border-sage-green-700 rounded px-2 py-0.5 uppercase tracking-wide">
+                <span className="text-[9px] font-black text-hunter-green-100 dark:text-hacker-text-main bg-sage-green-900 dark:bg-hacker-card-hover border border-sage-green-700 dark:border-hacker-border-green rounded px-2 py-0.5 uppercase tracking-wide">
                   {currentMetricData.label} Perspective
                 </span>
-                <span className="text-[9px] font-bold text-hunter-green-400 lowercase font-mono">
+                <span className="text-[9px] font-bold text-hunter-green-400 dark:text-hacker-text-submain lowercase font-mono">
                   {activeTab === "core8" ? "universal core 8" : "sector matrix metrics"}
                 </span>
               </div>
-              <h2 className="text-sm font-black text-hunter-green-100 mt-2">{currentMetricData.fullName}</h2>
-              <p className="text-[10px] font-mono text-hunter-green-400 mt-0.5">Formula: {currentMetricData.formula}</p>
+              <h2 className="text-sm font-black text-hunter-green-100 dark:text-hacker-text-main mt-2">{currentMetricData.fullName}</h2>
+              <p className="text-[10px] font-mono text-hunter-green-400 dark:text-hacker-text-submain mt-0.5">Formula: {currentMetricData.formula}</p>
             </div>
 
             {/* Simplistic Definition */}
-            <p className="text-xs text-hunter-green-200 leading-relaxed bg-white p-3 rounded-xl border border-sage-green-700/20">
+            <p className="text-xs text-hunter-green-200 dark:text-hacker-text-main leading-relaxed bg-white dark:bg-hacker-universal-bckgrd p-3 rounded-xl border border-sage-green-700/20 dark:border-hacker-border">
               {currentMetricData.desc}
             </p>
 
             {/* HIGH VS LOW EXPLAINER - What the value tells the user */}
-            <div className="bg-white p-4.5 rounded-xl border border-sage-green-700/25 space-y-3.5">
-              <span className="text-[9px] font-extrabold tracking-wider uppercase text-hunter-green-400 block border-b border-sage-green-200 pb-1.5">
+            <div className="bg-white dark:bg-hacker-universal-bckgrd p-4.5 rounded-xl border border-sage-green-700/25 dark:border-hacker-border space-y-3.5">
+              <span className="text-[9px] font-extrabold tracking-wider uppercase text-hunter-green-400 dark:text-hacker-text-submain block border-b border-sage-green-200 dark:border-hacker-border pb-1.5">
                 Quantitative Significance Guide
               </span>
               
-              <div className="space-y-3 text-xs text-slate-705">
+              <div className="space-y-3 text-xs text-slate-705 dark:text-hacker-text-main">
                 <div className="flex gap-2">
-                  <div className="text-hunter-green font-extrabold shrink-0 px-2 py-0.5 bg-sage-green-900 rounded border border-sage-green-600/30 text-[9px] uppercase h-fit mt-0.5">
+                  <div className="text-hunter-green dark:text-hacker-text-accent font-extrabold shrink-0 px-2 py-0.5 bg-sage-green-900 dark:bg-hacker-card-hover rounded border border-sage-green-600/30 dark:border-hacker-border-green text-[9px] uppercase h-fit mt-0.5">
                     HIGH
                   </div>
-                  <p className="leading-relaxed font-sans text-hunter-green-100">{currentMetricData.highTells}</p>
+                  <p className="leading-relaxed font-sans text-hunter-green-100 dark:text-hacker-text-main">{currentMetricData.highTells}</p>
                 </div>
                 
                 <div className="flex gap-2">
-                  <div className="text-blushed-brick font-extrabold shrink-0 px-2 py-0.5 bg-blushed-brick-900 rounded border border-blushed-brick-800/40 text-[9px] uppercase h-fit mt-0.5">
+                  <div className="text-blushed-brick dark:text-red-400 font-extrabold shrink-0 px-2 py-0.5 bg-blushed-brick-900 dark:bg-red-950/40 rounded border border-blushed-brick-800/40 dark:border-red-900/50 text-[9px] uppercase h-fit mt-0.5">
                     LOW
                   </div>
-                  <p className="leading-relaxed font-sans text-hunter-green-100">{currentMetricData.lowTells}</p>
+                  <p className="leading-relaxed font-sans text-hunter-green-100 dark:text-hacker-text-main">{currentMetricData.lowTells}</p>
                 </div>
               </div>
             </div>
 
             {/* MISSING / ZERO VALUE PROMPTS */}
-            <div className="border-t border-sage-green-700/20 pt-3">
+            <div className="border-t border-sage-green-700/20 dark:border-hacker-border pt-3">
               {missingFields.length > 0 ? (
-                <div className="space-y-3 bg-blushed-brick-900/65 border border-blushed-brick-800/40 p-4 rounded-xl">
-                  <div className="flex items-center gap-1.5 text-blushed-brick-105">
-                    <AlertTriangle className="w-4 h-4 text-blushed-brick shrink-0" />
+                <div className="space-y-3 bg-blushed-brick-900/65 dark:bg-red-950/30 border border-blushed-brick-800/40 dark:border-red-900/50 p-4 rounded-xl">
+                  <div className="flex items-center gap-1.5 text-blushed-brick-105 dark:text-red-400">
+                    <AlertTriangle className="w-4 h-4 text-blushed-brick dark:text-red-400 shrink-0" />
                     <span className="text-[10px] font-black uppercase tracking-wider">
                       Required Ledger Input Alert
                     </span>
                   </div>
                   
-                  <p className="text-[11px] text-hunter-green-200 leading-relaxed">
+                  <p className="text-[11px] text-hunter-green-200 dark:text-hacker-text-main leading-relaxed">
                     Some corporate inputs required for this metric are missing or set to 0. Please input the correct values below, or trigger AI extraction to automatically crawl estimated data.
                   </p>
 
@@ -1029,7 +1029,7 @@ export function FinCoreView({
                       type="button"
                       onClick={triggerAiBatchExtraction}
                       disabled={isAiExtracting}
-                      className="px-3 py-1.5 bg-hunter-green border border-hunter-green-600 text-white rounded-lg font-bold text-[10px] transition hover:bg-hunter-green-500 inline-flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                      className="px-3 py-1.5 bg-hunter-green dark:bg-hacker-green border border-hunter-green-600 dark:border-hacker-border-green text-white rounded-lg font-bold text-[10px] transition hover:bg-hunter-green-500 dark:hover:opacity-90 inline-flex items-center gap-1 cursor-pointer disabled:opacity-50"
                     >
                       {isAiExtracting ? (
                         <>
@@ -1038,7 +1038,7 @@ export function FinCoreView({
                         </>
                       ) : (
                         <>
-                          <Sparkles className="w-3.5 h-3.5 text-yellow-green-600" />
+                          <Sparkles className="w-3.5 h-3.5 text-yellow-green-600 dark:text-hacker-text-accent" />
                           <span>AI Auto-Extract</span>
                         </>
                       )}
@@ -1046,17 +1046,17 @@ export function FinCoreView({
                   </div>
                 </div>
               ) : (
-                <div className="bg-sage-green-900/40 border border-sage-green-800/30 p-3.5 rounded-xl flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-hunter-green shrink-0" />
-                  <p className="text-[10px] font-extrabold text-hunter-green uppercase tracking-widest">
+                <div className="bg-sage-green-900/40 dark:bg-hacker-text-accent/10 border border-sage-green-800/30 dark:border-hacker-border-green p-3.5 rounded-xl flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-hunter-green dark:text-hacker-text-accent shrink-0" />
+                  <p className="text-[10px] font-extrabold text-hunter-green dark:text-hacker-text-accent uppercase tracking-widest">
                     All Required Inputs Verified & Recalculated
                   </p>
                 </div>
               )}
 
               {/* Standard Interactive form to update any/all required core bases */}
-              <form onSubmit={handleValueUpdate} className="mt-4 space-y-3 bg-white border border-sage-green-700/25 p-4 rounded-xl">
-                <span className="text-[9px] font-black text-hunter-green-400 uppercase tracking-widest block mb-2 px-1">
+              <form onSubmit={handleValueUpdate} className="mt-4 space-y-3 bg-white dark:bg-hacker-universal-bckgrd border border-sage-green-700/25 dark:border-hacker-border p-4 rounded-xl">
+                <span className="text-[9px] font-black text-hunter-green-400 dark:text-hacker-text-submain uppercase tracking-widest block mb-2 px-1">
                   Ledger Inputs & Values (MYR '000)
                 </span>
 
@@ -1070,8 +1070,8 @@ export function FinCoreView({
 
                     return (
                       <div key={fMeta.fieldId} className="flex items-center justify-between gap-2.5">
-                        <label className="text-[10px] text-hunter-green-300 font-bold truncate max-w-[200px]" title={fMeta.label}>
-                          {fMeta.label} {isMissing && <span className="text-blushed-brick font-extrabold">*</span>}
+                        <label className="text-[10px] text-hunter-green-300 dark:text-hacker-text-submain font-bold truncate max-w-[200px]" title={fMeta.label}>
+                          {fMeta.label} {isMissing && <span className="text-blushed-brick dark:text-red-400 font-extrabold">*</span>}
                         </label>
                         <input
                           type="text"
@@ -1079,8 +1079,8 @@ export function FinCoreView({
                           placeholder={isMissing ? "Enter Value" : String(originalValue)}
                           onChange={(e) => setEditingValues(prev => ({ ...prev, [fMeta.fieldId]: e.target.value }))}
                           className={cn(
-                            "w-28 px-2 py-1 text-right text-xs font-mono font-bold rounded-md bg-vanilla-cream-900 border transition-all focus:bg-white focus:outline-hunter-green",
-                            isMissing ? "border-blushed-brick-800 text-blushed-brick placeholder-blushed-brick-800/40 bg-blushed-brick-900/40" : "border-sage-green-750/15 text-hunter-green-100"
+                            "w-28 px-2 py-1 text-right text-xs font-mono font-bold rounded-md bg-vanilla-cream-900 dark:bg-hacker-card-hover border transition-all focus:bg-white dark:focus:bg-hacker-card-bg focus:outline-hunter-green dark:focus:outline-hacker-border-green",
+                            isMissing ? "border-blushed-brick-800 dark:border-red-900/50 text-blushed-brick dark:text-red-400 placeholder-blushed-brick-800/40 bg-blushed-brick-900/40 dark:bg-red-950/30" : "border-sage-green-750/15 dark:border-hacker-border text-hunter-green-100 dark:text-hacker-text-main"
                           )}
                         />
                       </div>
@@ -1088,11 +1088,11 @@ export function FinCoreView({
                   })}
                 </div>
 
-                <div className="pt-2 border-t border-sage-green-200/20 flex items-center justify-between">
+                <div className="pt-2 border-t border-sage-green-200/20 dark:border-hacker-border flex items-center justify-between">
                   <button
                     type="submit"
                     disabled={saveStatus === "saving"}
-                    className="px-3.5 py-1.5 bg-hunter-green hover:bg-hunter-green-400 text-white font-extrabold text-[10px] uppercase tracking-wide rounded-lg inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    className="px-3.5 py-1.5 bg-hunter-green dark:bg-hacker-green hover:bg-hunter-green-400 dark:hover:opacity-90 text-white font-extrabold text-[10px] uppercase tracking-wide rounded-lg inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                   >
                     {saveStatus === "saving" ? (
                       <>
@@ -1108,12 +1108,12 @@ export function FinCoreView({
                   </button>
 
                   {saveStatus === "success" && (
-                    <span className="text-[9px] text-sage-green font-black uppercase tracking-wider animate-pulse">
+                    <span className="text-[9px] text-sage-green dark:text-hacker-text-accent font-black uppercase tracking-wider animate-pulse">
                       ✓ Recalculated
                     </span>
                   )}
                   {saveStatus === "error" && (
-                    <span className="text-[9px] text-blushed-brick font-black uppercase tracking-wider">
+                    <span className="text-[9px] text-blushed-brick dark:text-red-400 font-black uppercase tracking-wider">
                       ⚠️ Failed
                     </span>
                   )}
