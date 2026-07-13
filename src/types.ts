@@ -16,6 +16,9 @@ export interface ParsedDocument {
   // User-editable fields
   companyName: string;
   isExpanded: boolean;
+  year?: string;
+  sector?: string;
+  selectedPages?: string;
 }
 
 export interface Metadata {
@@ -26,6 +29,7 @@ export interface Metadata {
   OriginalFileName?: string;
   StoredFileName?: string;
   DocType?: string;
+  SelectedPages?: string;
 }
 
 export interface Financials {
