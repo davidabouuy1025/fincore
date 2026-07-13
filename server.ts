@@ -10,13 +10,13 @@ import { XMLBuilder, XMLParser } from "fast-xml-parser";
 import dotenv from "dotenv";
 import { FINANCIAL_DICTIONARY } from "./server/dictionary";
 import { extractValue, performOCR, performPdfOCR, toPureMarkdown } from "./server/parser";
-import { detectCompanyName, detectSector, toTitleCase } from "./server/utils";
+import { detectCompanyName, detectSector, toTitleCase, detectYear } from "./server/utils";
 import { loadNewsDb, saveNewsDb, crawlKeywordRSS, scrapeArticleText, Article } from "./server/news_service";
 
 dotenv.config();
 
 const app = express();
-const PORT = Number(process.env.PORT) || 5000;
+const PORT = Number(process.env.PORT) || 3000;
 const DB_ROOT = process.env.FINCORE_DB_PATH || "./fincore_db";
 const STORAGE_ROOT = path.join(DB_ROOT, "original_reports");
 
@@ -72,20 +72,83 @@ function extractedDataToFinancials(
   return financials;
 }
 
-async function extractMarkdownFromStoredFile(filePath: string, originalFileName: string, mimetype?: string) {
+function parsePagesRange(rangeStr: string): number[] {
+  if (!rangeStr) return [];
+  const clean = rangeStr.replace(/[()\[\]]/g, "").trim();
+  if (clean.toLowerCase() === "all" || !clean) return [];
+
+  const pages: number[] = [];
+  const parts = clean.split(",");
+  for (const part of parts) {
+    const trimmed = part.trim();
+    if (!trimmed) continue;
+    if (trimmed.includes("-")) {
+      const subparts = trimmed.split("-");
+      const start = parseInt(subparts[0].trim(), 10);
+      const end = parseInt(subparts[1]?.trim() || "", 10);
+      if (!isNaN(start) && !isNaN(end)) {
+        const minVal = Math.min(start, end);
+        const maxVal = Math.max(start, end);
+        for (let i = minVal; i <= maxVal; i++) {
+          if (i > 0) pages.push(i);
+        }
+      }
+    } else {
+      const num = parseInt(trimmed, 10);
+      if (!isNaN(num) && num > 0) {
+        pages.push(num);
+      }
+    }
+  }
+  return Array.from(new Set(pages)).sort((a, b) => a - b);
+}
+
+async function extractMarkdownFromStoredFile(
+  filePath: string,
+  originalFileName: string,
+  mimetype?: string,
+  selectedPages?: string
+) {
   let text = "";
   let docType = mimetype?.startsWith("image/") ? "IMAGE" : "DIGITAL_PDF";
-  console.log("server.ts - Running extractMarkdownFromStoredFile()")
+  console.log(`server.ts - Running extractMarkdownFromStoredFile() with selectedPages: ${selectedPages || "all"}`);
 
   if (mimetype === "application/pdf" || filePath.toLowerCase().endsWith(".pdf")) {
     const buffer = fs.readFileSync(filePath);
-    const pdfData = await parsePdf(buffer);
+    
+    let options: any = undefined;
+    const allowedPages = selectedPages ? parsePagesRange(selectedPages) : [];
+    if (allowedPages.length > 0) {
+      options = {
+        pagerender: (pageData: any) => {
+          const pageNum = pageData.pageIndex + 1;
+          if (!allowedPages.includes(pageNum)) {
+            return Promise.resolve("");
+          }
+          return pageData.getTextContent().then((textContent: any) => {
+            let text = "";
+            let lastY;
+            for (const item of textContent.items) {
+              if (lastY === item.transform[5] || !lastY) {
+                text += item.str;
+              } else {
+                text += "\n" + item.str;
+              }
+              lastY = item.transform[5];
+            }
+            return text;
+          });
+        }
+      };
+    }
+
+    const pdfData = await parsePdf(buffer, options);
     text = pdfData.text || "";
 
     if (text.trim().length < 200) {
       console.log(`[OCR] Scanned PDF: ${originalFileName}`);
       try {
-        text = await performPdfOCR(filePath);
+        text = await performPdfOCR(filePath, allowedPages);
       } catch {
         // Do nothing
       }
@@ -244,6 +307,7 @@ async function startServer() {
       }
 
       const parsed = [];
+      const selectedPages = req.body.selectedPages || "";
 
       for (const file of files) {
         let text = "";
@@ -251,16 +315,17 @@ async function startServer() {
         let markdown = "";
 
         try {
-          const converted = await extractMarkdownFromStoredFile(file.path, file.originalname, file.mimetype);
+          const converted = await extractMarkdownFromStoredFile(file.path, file.originalname, file.mimetype, selectedPages);
           text = converted.text;
           docType = converted.docType;
           markdown = converted.markdown;
         } catch (parseErr) {
           console.error(`[WARN] Parse error for ${file.originalname}:`, parseErr);
           try {
+            const allowedPages = selectedPages ? parsePagesRange(selectedPages) : [];
             text =
               file.mimetype === "application/pdf"
-                ? await performPdfOCR(file.path)
+                ? await performPdfOCR(file.path, allowedPages)
                 : await performOCR(file.path);
             docType = file.mimetype === "application/pdf" ? "SCANNED_PDF" : "IMAGE";
             markdown = toPureMarkdown(text, file.originalname);
@@ -272,6 +337,7 @@ async function startServer() {
 
         const suggestedCompanyName = detectCompanyName(markdown || text, file.originalname);
         const suggestedSector = detectSector(markdown || text, "TECHNOLOGY");
+        const suggestedYear = detectYear(markdown || text, "2025");
 
         // Extract all financial data
         const extractedData = extractFinancialsFromMarkdown(markdown || text);
@@ -286,6 +352,10 @@ async function startServer() {
           },
           suggestedCompanyName,
           suggestedSector,
+          suggestedYear,
+          companyName: suggestedCompanyName,
+          year: suggestedYear,
+          sector: suggestedSector,
           extractedData,
           rawTextLength: markdown.length,
         });
@@ -318,7 +388,9 @@ async function startServer() {
       const saved = [];
 
       for (const report of reports) {
-        var { companyName, financials, storedFileName, originalFileName, docType } = report;
+        var { companyName, financials, storedFileName, originalFileName, docType, selectedPages } = report;
+        const reportYear = report.year || year;
+        const reportSector = report.sector || sector;
         const pureMarkdown = report.markdown?.pureMarkdown || report.Markdown?.pureMarkdown || report.pureMarkdown || "";
         companyName = toTitleCase(companyName);
 
@@ -326,13 +398,14 @@ async function startServer() {
           CompanyReport: {
             Metadata: {
               CompanyName: companyName,
-              FinancialYear: year,
-              Sector: sector,
+              FinancialYear: reportYear,
+              Sector: reportSector,
               OriginalFileName: originalFileName,
               StoredFileName: storedFileName,
               Currency: "MYR '000",
               DocType: docType,
               ProcessedAt: new Date().toISOString(),
+              SelectedPages: selectedPages || "",
             },
             Financials: financials,
             Markdown: {
@@ -342,7 +415,7 @@ async function startServer() {
         };
 
         // Save XML
-        const sectorDir = path.join(DB_ROOT, String(year), sector);
+        const sectorDir = path.join(DB_ROOT, String(reportYear), reportSector);
         if (!fs.existsSync(sectorDir)) fs.mkdirSync(sectorDir, { recursive: true });
 
         if (!companyName?.trim()) {
@@ -382,11 +455,11 @@ async function startServer() {
         saved.push({
           companyName,
           fileName,
-          sector,
-          year,
+          sector: reportSector,
+          year: reportYear,
         });
 
-        console.log(`[SAVED] ${companyName} → ${sector}/${year}`);
+        console.log(`[SAVED] ${companyName} → ${reportSector}/${reportYear}`);
       }
 
       res.json({ success: true, saved });
@@ -537,6 +610,48 @@ async function startServer() {
     }
   });
 
+  // ── GET /api/reports-multi/:year/:sector ──
+  app.get("/api/reports-multi/:year/:sector", (req, res) => {
+    try {
+      const { year, sector } = req.params;
+      const startYear = parseInt(year);
+      if (isNaN(startYear)) {
+        return res.status(400).json({ error: "Invalid year format" });
+      }
+
+      const parser = new XMLParser({ ignoreAttributes: false, parseAttributeValue: true, parseTagValue: false });
+      const reports: any[] = [];
+
+      for (let i = 0; i < 5; i++) {
+        const targetY = String(startYear - i);
+        const sectorPath = path.join(DB_ROOT, targetY, sector);
+
+        if (fs.existsSync(sectorPath)) {
+          const files = fs.readdirSync(sectorPath).filter((f) => f.endsWith(".xml"));
+          for (const file of files) {
+            try {
+              const content = fs.readFileSync(path.join(sectorPath, file), "utf-8");
+              const parsedReport = parser.parse(content).CompanyReport;
+              if (parsedReport) {
+                if (!parsedReport.Metadata.FinancialYear) {
+                  parsedReport.Metadata.FinancialYear = targetY;
+                }
+                reports.push(parsedReport);
+              }
+            } catch (err) {
+              console.error(`[WARN] Error parsing multi-year report ${file} for year ${targetY}:`, err);
+            }
+          }
+        }
+      }
+
+      res.json(reports);
+    } catch (err: any) {
+      console.error("[ERROR] Multi-year retrieval failure:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // ── GET /api/archive ──
   app.get("/api/archive", (req, res) => {
     try {
@@ -567,7 +682,7 @@ async function startServer() {
       const apiKey = process.env.GEMINI_API_KEY;
 
       if (!apiKey) {
-        return res.status(500).json({ error: "XXX_API_KEY not configured" });
+        return res.status(500).json({ error: "GEMINI_API_KEY not configured" });
       }
 
       const prompt = `You are a financial analyst specializing in Bursa Malaysia.
@@ -590,24 +705,25 @@ async function startServer() {
         2
       )}`;
 
-      const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: "gemini-2.5-flash",
-          messages: [{ role: "user", content: prompt }],
-          stream: false,
-          max_tokens: 600,
-        }),
-      });
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ role: "user", parts: [{ text: prompt }] }],
+            generationConfig: {
+              temperature: 0.2,
+            },
+          }),
+        }
+      );
 
       const data: any = await response.json();
+      const text = data.candidates?.[0]?.content?.parts?.map((part: any) => part.text || "").join("") || "";
 
-      if (data.choices?.[0]?.message?.content) {
-        res.json({ text: data.choices[0].message.content });
+      if (text) {
+        res.json({ text });
       } else {
         res.status(500).json({ error: data.error?.message || "Invalid response from AI" });
       }
