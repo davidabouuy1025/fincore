@@ -38,13 +38,14 @@
 
   /* --- SEMANTIC ALIASES (The magic mapping) --- */
   --color-hacker-bg: rgb(252, 250, 245);
-  --color-hacker-text-main: rgb(0, 0, 0);
-  --color-hacker-text-submain: (0, 0, 0);
-  --color-hacker-text-accent: rgb(56, 102, 65);
-  --color-hacker-border: rgb(106, 153, 78);
+  --color-hacker-text-main: rgb(15, 23, 42); /* Deep slate-900 for premium readability */
+  --color-hacker-text-submain: rgb(51, 65, 85); /* Slate-700 for subheadings and details */
+  --color-hacker-text-muted: rgb(100, 116, 139); /* Slate-500 for secondary descriptors and labels */
+  --color-hacker-text-accent: rgb(20, 83, 45); /* Elegant deep forest green for high-contrast accents */
+  --color-hacker-border: rgb(186, 201, 191); /* Soft slate-green border for structured content */
   --color-hacker-border-green: rgb(106, 153, 78);
-  --color-hacker-card-bg: rgba(255, 255, 255, 0.92);
-  --color-hacker-card-hover: rgba(255, 255, 255, 0.98);
+  --color-hacker-card-bg: rgba(255, 255, 255, 0.95);
+  --color-hacker-card-hover: rgba(255, 255, 255, 1);
   --color-hacker-universal-bckgrd: rgba(255, 255, 255, 1);
   --color-hacker-black-white: rgb(0, 0, 0);
   --color-hacker-white-black: rgb(255,255,255);
@@ -53,9 +54,10 @@
 @layer base {
   .dark {
     /* Theme variable overrides */
-    --color-hacker-bg: var(--color-hunter-green-100);
+    --color-hacker-bg: #0b140d;
     --color-hacker-text-main: rgb(37, 210, 37);
     --color-hacker-text-submain: rgb(28, 174, 28);
+    --color-hacker-text-muted: rgba(37, 210, 37, 0.7);
     --color-hacker-text-accent: rgb(17, 255, 0);
     --color-hacker-border: rgb(255, 255, 255);
     --color-hacker-border-green: rgb(37, 210, 37);
