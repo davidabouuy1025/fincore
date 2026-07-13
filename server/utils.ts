@@ -96,3 +96,31 @@ export function toTitleCase(text: string) {
     )
     .join(" ");
 }
+
+export function detectYear(text: string, defaultYear: string = "2025"): string {
+  const normalized = text.toLowerCase();
+  
+  // Look for patterns like "fy 2024" or "fy2024" or "financial year 2024"
+  const fyMatches = normalized.match(/fy\s*(202[0-6])/);
+  if (fyMatches && fyMatches[1]) {
+    return fyMatches[1];
+  }
+  
+  const finYearMatches = normalized.match(/financial\s+year\s+(?:ended\s+)?(202[0-6])/);
+  if (finYearMatches && finYearMatches[1]) {
+    return finYearMatches[1];
+  }
+
+  const reportsMatches = normalized.match(/annual\s+report\s+(202[0-6])/);
+  if (reportsMatches && reportsMatches[1]) {
+    return reportsMatches[1];
+  }
+
+  // Fallback to searching any year between 2020 and 2026
+  const anyYearMatch = normalized.match(/\b(202[0-6])\b/);
+  if (anyYearMatch && anyYearMatch[1]) {
+    return anyYearMatch[1];
+  }
+
+  return defaultYear;
+}
