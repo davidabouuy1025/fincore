@@ -27,7 +27,7 @@ const execFileAsync = promisify(execFile);
  * @param filePath 
  * @returns text | calls performOCR internally
  */
-export async function performPdfOCR(filePath: string): Promise<string> {
+export async function performPdfOCR(filePath: string, allowedPages?: number[]): Promise<string> {
   // create a TEMP directory to store each images converted from a PDF
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "fincore-pdf-ocr-"));
   const outputPrefix = path.join(tempDir, "page");
@@ -50,11 +50,15 @@ export async function performPdfOCR(filePath: string): Promise<string> {
       return performOCR(filePath);
     }
 
-    // Run Tesseract on all images and save the texts into pages
+    // Run Tesseract only on allowed pages
     const pages: string[] = [];
     for (let i = 0; i < pageImages.length; i++) {
+      const pageNum = i + 1;
+      if (allowedPages && allowedPages.length > 0 && !allowedPages.includes(pageNum)) {
+        continue;
+      }
       const pageText = await performOCR(pageImages[i]);
-      pages.push(`## Page ${i + 1}\n\n${pageText}`);
+      pages.push(`## Page ${pageNum}\n\n${pageText}`);
     }
 
     return pages.join("\n\n").trim();
