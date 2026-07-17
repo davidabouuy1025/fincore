@@ -14,6 +14,7 @@ import { TempView } from "./temp";
 import SplashCursor from "./components/SplashCursor";
 import InteractiveGrid from "./components/InteractiveGrid";
 import { style } from "motion/react-client";
+import favicon from "../public/favicon.png";
 
 export default function App() {
   const [reports, setReports] = useState<CompanyReport[]>([]);
@@ -331,7 +332,11 @@ export default function App() {
           className={`flex flex-col items-center mb-4 group cursor-pointer transition-all hover:scale-105 ${view === "info" ? "scale-105" : ""}`}
         >
           <div className={`w-10 h-10 border flex items-center justify-center rounded-lg transition-all ${view === "info" ? "border-emerald-600 bg-emerald-50 text-emerald-800" : "border-emerald-600 bg-emerald-50 text-emerald-800 group-hover:border-hacker-green group-hover:text-hacker-green"}`}>
-            <TrendingUp className={`w-5 h-5 ${view === "info" ? "text-emerald-700" : "text-slate-400 group-hover:text-hacker-green"}`} />
+            <img
+              src={favicon}
+              alt="Favicon"
+              className="w-full h-full object-contain"
+            />
           </div>
           <span
             className="text-[8px] text-hacker-text-main font-extrabold tracking-[0.3em] mt-2 transition-colors"
