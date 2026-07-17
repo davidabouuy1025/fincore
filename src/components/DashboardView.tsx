@@ -697,7 +697,7 @@ ${growth >= 0
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Topline Growth Card */}
-            <div className="bg-white dark:bg-hacker-card-bg border border-hacker-border/40 rounded-xl p-5 shadow-3xs">
+            <div className="bg-white dark:bg-hacker-card-bg border border-hacker-border/40 hover:border-hacker-border rounded-xl p-5 shadow-3xs">
               <span className="text-[8px] uppercase tracking-wider font-black text-hacker-text-muted block mb-2">
                 TOPLINE PERFORMANCE
               </span>
@@ -732,7 +732,7 @@ ${growth >= 0
             </div>
 
             {/* Profitability Index Card */}
-            <div className="bg-white dark:bg-hacker-card-bg border border-hacker-border/40 rounded-xl p-5 shadow-3xs">
+            <div className="bg-white dark:bg-hacker-card-bg border border-hacker-border/40 hover:border-hacker-border rounded-xl p-5 shadow-3xs">
               <span className="text-[8px] uppercase tracking-wider font-black text-hacker-text-muted block mb-2">
                 MARGIN MATRIX
               </span>
@@ -765,7 +765,7 @@ ${growth >= 0
             </div>
 
             {/* Cash Flow Health Card */}
-            <div className="bg-white dark:bg-hacker-card-bg border border-hacker-border/40 rounded-xl p-5 shadow-3xs">
+            <div className="bg-white dark:bg-hacker-card-bg border border-hacker-border/40 hover:border-hacker-border rounded-xl p-5 shadow-3xs">
               <span className="text-[8px] uppercase tracking-wider font-black text-hacker-text-muted block mb-2">
                 LIQUID MATRIX
               </span>
@@ -798,7 +798,7 @@ ${growth >= 0
             </div>
 
             {/* Asset Productivity Card */}
-            <div className="bg-white dark:bg-hacker-card-bg border border-hacker-border/40 rounded-xl p-5 shadow-3xs">
+            <div className="bg-white dark:bg-hacker-card-bg border border-hacker-border/40 hover:border-hacker-border rounded-xl p-5 shadow-3xs">
               <span className="text-[8px] uppercase tracking-wider font-black text-hacker-text-muted block mb-2">
                 STRENGTH RATIOS
               </span>
@@ -920,7 +920,7 @@ ${growth >= 0
                       key={id}
                       onClick={() => setActiveTrendSelection(id)}
                       className={cn(
-                        "p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between h-18 select-none",
+                        "p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between h-14 select-none",
                         isSelected
                           ? "bg-emerald-500/10 border-emerald-500 shadow-md text-emerald-600 dark:text-emerald-400 font-bold"
                           : "border-slate-200 dark:border-hacker-border bg-white dark:bg-hacker-card-bg text-hacker-text-muted hover:border-slate-300 dark:hover:border-emerald-500/50 hover:text-hacker-text-main"
@@ -953,7 +953,7 @@ ${growth >= 0
                       key={rel.id}
                       onClick={() => setActiveTrendSelection(rel.id)}
                       className={cn(
-                        "p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between h-20 select-none",
+                        "p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between h-14 select-none",
                         isSelected
                           ? "bg-emerald-500/10 border-emerald-500 shadow-md text-emerald-600 dark:text-emerald-400 font-bold"
                           : "border-slate-200 dark:border-hacker-border bg-white dark:bg-hacker-card-bg text-hacker-text-muted hover:border-slate-300 dark:hover:border-emerald-500/50 hover:text-hacker-text-main"

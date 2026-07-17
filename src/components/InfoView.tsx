@@ -140,11 +140,11 @@ function FeatureCard({ f, i, show }: { f: typeof FEATURES[0]; i: number; show: b
       onMouseLeave={() => setHovered(false)}
       style={{
         background: hovered
-          ? "var(--color-hacker-card-hover)"
+          ? "var(--color-hacker-white-black)"
           : "var(--color-hacker-card-bg)",
         borderColor: hovered
           ? "var(--color-hacker-text-accent)"
-          : "var(--color-hacker-border)",
+          : "var(--color-hacker-white-black)",
         transform: hovered ? "translateY(-4px)" : "translateY(0px)",
         transition: "all 0.25s cubic-bezier(0.22, 1, 0.36, 1)",
         boxShadow: hovered

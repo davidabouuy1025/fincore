@@ -23,6 +23,10 @@ import { motion, AnimatePresence } from "motion/react";
 import { ParsedDocument, ExtractedField, CompanyReport } from "../types";
 import { BURSA_SECTORS } from "../constants";
 import { PageSelectionModal } from "./PageSelectionModal";
+import { Document, Page, pdfjs } from "react-pdf";
+
+// Configure worker using CDN unpkg for maximum compatibility
+pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version || "4.4.168"}/build/pdf.worker.min.mjs`;
 
 // Helper function to combine classnames
 
@@ -144,7 +148,7 @@ export function UploadView({
   const [mdObjectUrl, setMdObjectUrl] = useState<string | null>(null);
 
   const getPromptTemplate = () => {
-    return `Convert arkdown into JSON. Use the formula to calculate if any value is missing but derivable, else leave as 0 :
+    return `As professional auditor, convert markdown into JSON. Use the formula to calculate if any value is missing but derivable, else leave as 0. STRICTLY double check all the values ensuring that all the values are correct for the financial year.
 
 markdown:
 ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
@@ -443,11 +447,95 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
   const [isParsingLocal, setIsParsingLocal] = useState<boolean>(false);
   const [isSavingLocal, setIsSavingLocal] = useState<boolean>(false);
 
+  // Real PDF Preview States and Helpers
+  const [selectedStoredFileName, setSelectedStoredFileName] = useState<string | null>(null);
+  const [pdfNumPages, setPdfNumPages] = useState<number | null>(null);
+  const pdfScrollContainerRef = useRef<HTMLDivElement>(null);
+
+  const parsePagesRange = (rangeStr: string, totalPages?: number): number[] => {
+    if (!rangeStr) return [];
+    const clean = rangeStr.replace(/[()\[\]]/g, "").trim();
+    if (clean.toLowerCase() === "all" || !clean) return [];
+
+    const pages: number[] = [];
+    const parts = clean.split(",");
+    for (const part of parts) {
+      const trimmed = part.trim();
+      if (!trimmed) continue;
+      if (trimmed.includes("-")) {
+        const subparts = trimmed.split("-");
+        const start = parseInt(subparts[0].trim(), 10);
+        const end = parseInt(subparts[1]?.trim() || "", 10);
+        if (!isNaN(start) && !isNaN(end)) {
+          const minVal = Math.min(start, end);
+          const maxVal = Math.max(start, end);
+          for (let i = minVal; i <= maxVal; i++) {
+            if (i > 0 && (!totalPages || i <= totalPages)) {
+              pages.push(i);
+            }
+          }
+        }
+      } else {
+        const num = parseInt(trimmed, 10);
+        if (!isNaN(num) && num > 0 && (!totalPages || num <= totalPages)) {
+          pages.push(num);
+        }
+      }
+    }
+    return Array.from(new Set(pages)).sort((a, b) => a - b);
+  };
+
+  const getFirstSelectedPage = (selectedPagesStr?: string, totalPages?: number): number => {
+    if (!selectedPagesStr) return 1;
+    const resolved = parsePagesRange(selectedPagesStr, totalPages);
+    return resolved.length > 0 ? resolved[0] : 1;
+  };
+
+  useEffect(() => {
+    const activeDoc = reviewDocs.filter((d) => (d.year || "2025") === activeReviewYear)[activeReviewDocIndex];
+    if (activeDoc) {
+      const originalFiles = activeDoc.originalFileName
+        ? activeDoc.originalFileName.split(",").map(f => f.trim()).filter(Boolean)
+        : [];
+      const storedFiles = activeDoc.storedFileName
+        ? activeDoc.storedFileName.split(",").map(f => f.trim()).filter(Boolean)
+        : [];
+      
+      const filePairs = [];
+      if (originalFiles.length > 0 || storedFiles.length > 0) {
+        const maxLen = Math.max(originalFiles.length, storedFiles.length);
+        for (let i = 0; i < maxLen; i++) {
+          const orig = originalFiles[i] || `Document ${i + 1}`;
+          const stored = storedFiles[i] || originalFiles[i] || "";
+          if (stored) {
+            filePairs.push({ originalName: orig, storedName: stored });
+          }
+        }
+      } else if (activeDoc.storedFileName) {
+        filePairs.push({
+          originalName: activeDoc.originalFileName || "Source Document",
+          storedName: activeDoc.storedFileName
+        });
+      }
+
+      if (filePairs.length > 0) {
+        setSelectedStoredFileName(filePairs[0].storedName);
+      } else {
+        setSelectedStoredFileName(null);
+      }
+      setPdfNumPages(null);
+    } else {
+      setSelectedStoredFileName(null);
+      setPdfNumPages(null);
+    }
+  }, [activeReviewDocIndex, activeReviewYear, reviewDocs]);
+
   // Preview & Page selection modal states
   const [previewModalOpen, setPreviewModalOpen] = useState<boolean>(false);
   const [activePreviewAttachmentId, setActivePreviewAttachmentId] = useState<string | null>(null);
   const [activePreviewDocId, setActivePreviewDocId] = useState<string | null>(null); // For Review workspace selection
   const [previewPage, setPreviewPage] = useState<number>(1);
+  const [reviewPreviewMode, setReviewPreviewMode] = useState<"document" | "mock">("document");
 
   // Sync back review docs if parent list gets loaded
   useEffect(() => {
@@ -523,10 +611,17 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
     });
 
     return {
-      fileId: rep.Metadata?.StoredFileName || `saved-${Date.now()}-${rep.companyName}`,
-      originalFileName: rep.Metadata?.OriginalFileName || `${rep.companyName}_report.pdf`,
-      storedFileName: rep.Metadata?.StoredFileName || "",
+      fileId: Array.isArray(rep.Metadata?.StoredFileName)
+        ? rep.Metadata.StoredFileName.join(", ")
+        : (rep.Metadata?.StoredFileName || `saved-${Date.now()}-${rep.companyName}`),
+      originalFileName: Array.isArray(rep.Metadata?.OriginalFileName)
+        ? rep.Metadata.OriginalFileName.join(", ")
+        : (rep.Metadata?.OriginalFileName || `${rep.companyName}_report.pdf`),
+      storedFileName: Array.isArray(rep.Metadata?.StoredFileName)
+        ? rep.Metadata.StoredFileName.join(", ")
+        : (rep.Metadata?.StoredFileName || ""),
       docType: rep.Metadata?.DocType || "DIGITAL_PDF",
+      selectedPages: rep.Metadata?.SelectedPages || "1-15,45-60",
       markdown: {
         pureMarkdown: rep.Markdown?.pureMarkdown || "",
       },
@@ -718,80 +813,6 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
     setPreviewModalOpen(false);
   };
 
-  // Mock doc visualizer
-  const getMockDocumentContent = (company: string, page: number) => {
-    const compName = company || "MALAYSIAN CORPORATE HUB";
-    if (page === 1) {
-      return (
-        <div className="flex flex-col items-center justify-center h-full text-center p-8 bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl min-h-[400px]">
-          <div className="w-16 h-16 bg-emerald-600 dark:bg-emerald-500/10 border border-emerald-500/20 text-white dark:text-teal-400 flex items-center justify-center rounded-2xl text-xl font-black shadow-md mb-5">
-            {compName.charAt(0)}
-          </div>
-          <h2 className="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">{compName}</h2>
-          <p className="text-[9px] tracking-[0.3em] font-black text-slate-400 dark:text-teal-400 mt-2 uppercase">
-            AUDITED BRIEF // BURSA INGESTION
-          </p>
-          <div className="w-12 h-[2px] bg-emerald-500 my-5" />
-          <p className="text-[10px] max-w-xs text-slate-500 dark:text-zinc-400 leading-relaxed font-mono">
-            SEC REGISTRATION: BURSA-MYR-99210<br />
-            CONFIDENTIAL FINANCIAL LEDGER<br />
-            PREPARED FOR BOARD AUDIT
-          </p>
-        </div>
-      );
-    }
-
-    return (
-      <div className="p-5 bg-white dark:bg-zinc-900 text-slate-800 dark:text-zinc-200 rounded-2xl border border-slate-200 dark:border-zinc-800 min-h-[400px] font-mono text-[9px] space-y-3.5 shadow-3xs">
-        <div className="flex justify-between border-b border-slate-200 dark:border-zinc-850 pb-2">
-          <span className="font-black text-emerald-700 dark:text-teal-400 uppercase tracking-wide">
-            {compName} // INCOME METRICS
-          </span>
-          <span className="font-bold text-slate-400">PAGE {page} OF 412</span>
-        </div>
-
-        <p className="text-[8px] text-slate-400 leading-relaxed italic">
-          Values stated in RM Thousands. Standard corporate balance structures verified.
-        </p>
-
-        <div className="space-y-1.5 pt-2">
-          <div className="flex justify-between border-b border-slate-100 dark:border-zinc-850/50 py-1">
-            <span className="font-bold text-slate-500 dark:text-zinc-400">Revenue</span>
-            <span className="font-black text-slate-950 dark:text-white">RM 520,380</span>
-          </div>
-          <div className="flex justify-between border-b border-slate-100 dark:border-zinc-850/50 py-1">
-            <span className="font-bold text-slate-500 dark:text-zinc-400">Cost of Goods Sold (COGS)</span>
-            <span className="font-bold">RM (312,200)</span>
-          </div>
-          <div className="flex justify-between border-b border-slate-100 dark:border-zinc-850/50 py-1 text-teal-700 dark:text-teal-400 font-bold">
-            <span>Gross Profit</span>
-            <span className="font-black">RM 208,180</span>
-          </div>
-          <div className="flex justify-between border-b border-slate-100 dark:border-zinc-850/50 py-1">
-            <span className="font-bold text-slate-500 dark:text-zinc-400">Operating Expenses</span>
-            <span className="font-bold">RM (110,400)</span>
-          </div>
-          <div className="flex justify-between border-b border-slate-100 dark:border-zinc-850/50 py-1">
-            <span className="font-bold text-slate-500 dark:text-zinc-400">EBIT (Operating Profit)</span>
-            <span className="font-black text-slate-950 dark:text-white">RM 97,780</span>
-          </div>
-          <div className="flex justify-between border-b border-slate-100 dark:border-zinc-850/50 py-1">
-            <span className="font-bold text-slate-500 dark:text-zinc-400">Tax Expense</span>
-            <span className="font-bold">RM (24,445)</span>
-          </div>
-          <div className="flex justify-between border-b border-emerald-500/20 py-2.5 text-emerald-600 dark:text-teal-400">
-            <span className="font-black uppercase tracking-wider">Net Profit for the Period</span>
-            <span className="font-black text-xs">RM 73,335</span>
-          </div>
-        </div>
-
-        <div className="pt-3 border-t border-slate-100 dark:border-zinc-850/50 flex justify-between text-[7.5px] text-slate-400">
-          <span>BURSA REPORT COMPLIANCE GRID</span>
-          <span>STATUS: UNQUALIFIED</span>
-        </div>
-      </div>
-    );
-  };
 
   // Parse files and enter Review Screen
   const handleParseAttachments = async () => {
@@ -919,6 +940,7 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
             return {
               ...doc,
               originalFileName: doc.originalFileName + ", " + newParsed.originalFileName,
+              storedFileName: doc.storedFileName ? (doc.storedFileName + ", " + newParsed.storedFileName) : newParsed.storedFileName,
               extractedData: mergedData,
             };
           })
@@ -1080,7 +1102,7 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
       {uploadStep === "select" && (
         <div className="space-y-6">
           {/* Toggle Mode Segmented Control */}
-          <div className="flex gap-1.5 p-1 bg-slate-100 dark:bg-black rounded-xl border border-slate-200 dark:border-zinc-800/60 max-w-xl">
+          <div className="flex gap-1.5 p-1 bg-white dark:bg-hacker-card-bg rounded-xl border border-slate-200 dark:border-zinc-800/60 max-w-xl">
             {/* TEMP: Temporary disabled */}
             {/* <button
               onClick={() => setIngestMode("new")}
@@ -1099,8 +1121,8 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
               className={cn(
                 "flex-1 text-[10px] font-black uppercase tracking-wider py-2.5 rounded-lg transition-all cursor-pointer",
                 ingestMode === "markdown"
-                  ? "bg-white dark:bg-zinc-800 text-teal-800 dark:text-teal-400 shadow-3xs border border-slate-200 dark:border-zinc-750/50"
-                  : "text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300"
+                  ? "bg-white dark:bg-zinc-800 text-black dark:text-teal-400 shadow-3xs border border-slate-200 dark:border-zinc-750/50"
+                  : "text-black hover:text-black dark:hover:text-zinc-300"
               )}
             >
               Markdown & Ingest
@@ -1115,7 +1137,7 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
                 "flex-1 text-[10px] font-black uppercase tracking-wider py-2.5 rounded-lg transition-all cursor-pointer",
                 ingestMode === "saved"
                   ? "bg-white dark:bg-zinc-800 text-teal-800 dark:text-teal-400 shadow-3xs border border-slate-200 dark:border-zinc-750/50"
-                  : "text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300"
+                  : "text-slate-400 hover:text-black dark:hover:text-zinc-300"
               )}
             >
               Revisit Saved Records
@@ -1445,11 +1467,11 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
           {ingestMode === "markdown" && (
             <div className="space-y-6">
               {/* Introduction Card */}
-              <div className="bg-emerald-500/5 dark:bg-black border border-emerald-500/15 dark:border-zinc-850 p-5 rounded-2xl text-xs space-y-2 leading-relaxed">
-                <h3 className="font-extrabold uppercase text-slate-500 dark:text-teal-400 tracking-wider flex items-center gap-1.5">
-                  <Sparkles className="w-4 h-4 text-emerald-500 animate-pulse" /> Markdown Conversion & External JSON Ingest Pipeline
+              <div className="bg-white dark:bg-hacker-card-bg border border-black dark:border-zinc-850 p-5 rounded-2xl text-xs space-y-2 leading-relaxed">
+                <h3 className="font-extrabold uppercase text-black dark:text-teal-400 tracking-wider flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-emerald-800 animate-pulse" /> Markdown Conversion & External JSON Ingest Pipeline
                 </h3>
-                <p className="text-slate-500 dark:text-zinc-400">
+                <p className="text-black dark:text-zinc-400">
                   Upload any corporate financial report (PDF or Image), specify your target page selection, convert it to raw markdown, and copy-paste it with our pre-configured AI prompt template to generate structured JSON externally. Paste your generated JSON in the final stage to automatically serialize and save it directly into the database as standard XML.
                 </p>
               </div>
@@ -1465,7 +1487,7 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
                     </h4>
 
                     {/* Drag and Drop Zone or Standard File Input */}
-                    <div className="relative border-2 border-dashed border-emerald-500/20 dark:border-zinc-800 rounded-2xl p-6 hover:border-emerald-500/50 transition-colors bg-slate-50/20 dark:bg-black/10">
+                    <div className="relative border-2 border-dashed border-emerald-500/20 dark:border-zinc-800 rounded-2xl p-6 hover:border-emerald-500/50 transition-colors bg-white dark:bg-black/10">
                       <input
                         type="file"
                         accept="application/pdf, image/*"
@@ -1917,13 +1939,13 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
               )}
 
               {/* SPLIT SCREEN WORKSPACE LAYOUT */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch lg:h-[calc(100vh-210px)] lg:overflow-hidden">
 
                 {/* Left Side: STICKY Document Details & Preview Area */}
-                <div className="lg:col-span-5 space-y-6 lg:sticky lg:top-8 max-h-[calc(100vh-140px)] overflow-y-auto pr-2">
+                <div className="lg:col-span-5 flex flex-col h-full lg:overflow-hidden space-y-4 pr-2">
 
                   {/* Metadata and Associated Files Controls */}
-                  <div className="bg-white dark:bg-zinc-950 border border-slate-250 dark:border-zinc-850 p-5 rounded-2xl shadow-3xs space-y-4">
+                  <div className="bg-white dark:bg-zinc-950 border border-slate-250 dark:border-zinc-850 p-5 rounded-2xl shadow-3xs space-y-4 shrink-0">
                     <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-teal-400 border-b border-slate-100 dark:border-zinc-850 pb-2">
                       Active Ingest Parameters
                     </h3>
@@ -1980,75 +2002,184 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
                     </div>
 
                     {/* Files Associated & Add more files directly */}
-                    <div className="pt-3 border-t border-slate-200 dark:border-zinc-850/60 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="block text-[8px] uppercase tracking-widest font-black text-slate-400">
-                          Cohort File Sources
-                        </label>
-                        <span className="text-[9px] text-slate-400 font-mono font-bold">
-                          Selected Pages: {activeReviewDoc?.selectedPages || "All"}
-                        </span>
-                      </div>
+                    {ingestMode !== "saved" && (
+                      <div className="pt-3 border-t border-slate-200 dark:border-zinc-850/60 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <label className="block text-[8px] uppercase tracking-widest font-black text-slate-400">
+                            Cohort File Sources
+                          </label>
+                          <span className="text-[9px] text-slate-400 font-mono font-bold">
+                            Selected Pages: {activeReviewDoc?.selectedPages || "All"}
+                          </span>
+                        </div>
 
-                      {/* Miniature file drop zones */}
-                      <div className="relative border border-dashed border-slate-200 dark:border-zinc-800 rounded-xl p-3.5 bg-slate-50/40 dark:bg-zinc-900/10 flex items-center justify-between hover:border-emerald-500/50 transition-colors">
-                        <input
-                          type="file"
-                          multiple
-                          accept="application/pdf, image/*"
-                          onChange={(e) => {
-                            if (e.target.files) {
-                              handleAddFilesToReviewDoc(e.target.files);
-                            }
-                          }}
-                          className="absolute inset-0 opacity-0 cursor-pointer z-10"
-                        />
-                        <span className="text-[9px] font-black uppercase text-slate-500 dark:text-zinc-400">
-                          + Add/Replace Report Files
-                        </span>
-                        <Upload className="w-3.5 h-3.5 text-slate-400" />
-                      </div>
+                        {/* Miniature file drop zones */}
+                        <div className="relative border border-dashed border-slate-200 dark:border-zinc-800 rounded-xl p-3.5 bg-slate-50/40 dark:bg-zinc-900/10 flex items-center justify-between hover:border-emerald-500/50 transition-colors">
+                          <input
+                            type="file"
+                            multiple
+                            accept="application/pdf, image/*"
+                            onChange={(e) => {
+                              if (e.target.files) {
+                                handleAddFilesToReviewDoc(e.target.files);
+                              }
+                            }}
+                            className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                          />
+                          <span className="text-[9px] font-black uppercase text-slate-500 dark:text-zinc-400">
+                            + Add/Replace Report Files
+                          </span>
+                          <Upload className="w-3.5 h-3.5 text-slate-400" />
+                        </div>
 
-                      {/* Page selector modifier */}
-                      <button
-                        onClick={() => openPageSelectorFromReview(activeReviewDoc.fileId, activeReviewDoc.selectedPages || "")}
-                        className="w-full py-2 bg-slate-100 hover:bg-slate-200 dark:bg-zinc-900 dark:hover:bg-zinc-850 border border-slate-200/50 dark:border-zinc-800 text-[9px] font-black uppercase tracking-wider rounded-xl cursor-pointer transition-colors"
-                      >
-                        Modify Ingestion Pages ({activeReviewDoc?.selectedPages || "All"})
-                      </button>
-                    </div>
+                        {/* Page selector modifier */}
+                        <button
+                          onClick={() => openPageSelectorFromReview(activeReviewDoc.fileId, activeReviewDoc.selectedPages || "")}
+                          className="w-full py-2 bg-slate-100 hover:bg-slate-200 dark:bg-zinc-900 dark:hover:bg-zinc-850 border border-slate-200/50 dark:border-zinc-800 text-[9px] font-black uppercase tracking-wider rounded-xl cursor-pointer transition-colors"
+                        >
+                          Modify Ingestion Pages ({activeReviewDoc?.selectedPages || "All"})
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {/* Interactive document canvas preview panel */}
-                  <div className="bg-slate-50 dark:bg-zinc-900/40 border border-slate-200 dark:border-zinc-850 p-4 rounded-2xl space-y-3">
-                    <div className="flex items-center justify-between mb-1 text-[9px] uppercase tracking-wider font-black text-slate-400">
-                      <span>Interactive Preview Panel</span>
-                      <span className="text-emerald-500 font-mono">PAGE {previewPage} / 412</span>
+                  <div className="bg-slate-50 dark:bg-zinc-900/40 border border-slate-200 dark:border-zinc-850 p-4 rounded-2xl flex-1 flex flex-col min-h-[450px] lg:min-h-0 space-y-3 lg:overflow-hidden">
+                    <div className="flex items-center justify-between mb-1 text-[9px] uppercase tracking-wider font-black text-slate-400 shrink-0">
+                      <span>Source PDF Document Preview</span>
+                      {activeReviewDoc?.selectedPages && ingestMode !== "saved" && (
+                        <span className="text-emerald-600 dark:text-teal-400 font-mono font-bold">
+                          Pages: {activeReviewDoc.selectedPages}
+                        </span>
+                      )}
                     </div>
 
-                    {getMockDocumentContent(activeReviewDoc?.companyName, previewPage)}
+                    {/* File Selector */}
+                    {(() => {
+                      if (!activeReviewDoc) return null;
+                      const originalFiles = activeReviewDoc.originalFileName
+                        ? activeReviewDoc.originalFileName.split(",").map(f => f.trim()).filter(Boolean)
+                        : [];
+                      const storedFiles = activeReviewDoc.storedFileName
+                        ? activeReviewDoc.storedFileName.split(",").map(f => f.trim()).filter(Boolean)
+                        : [];
+                      
+                      const filePairs = [];
+                      if (originalFiles.length > 0 || storedFiles.length > 0) {
+                        const maxLen = Math.max(originalFiles.length, storedFiles.length);
+                        for (let i = 0; i < maxLen; i++) {
+                          const orig = originalFiles[i] || `Document ${i + 1}`;
+                          const stored = storedFiles[i] || originalFiles[i] || "";
+                          if (stored) {
+                            filePairs.push({ originalName: orig, storedName: stored });
+                          }
+                        }
+                      } else if (activeReviewDoc.storedFileName) {
+                        filePairs.push({
+                          originalName: activeReviewDoc.originalFileName || "Source Document",
+                          storedName: activeReviewDoc.storedFileName
+                        });
+                      }
 
-                    <div className="flex justify-between items-center pt-3 border-t border-slate-200 dark:border-zinc-800">
-                      <button
-                        onClick={() => setPreviewPage((p) => Math.max(1, p - 1))}
-                        disabled={previewPage <= 1}
-                        className="px-3 py-2 text-[9px] bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl font-black disabled:opacity-45 cursor-pointer uppercase tracking-wider text-slate-600 dark:text-zinc-300 hover:bg-slate-50"
-                      >
-                        ← PREV PAGE
-                      </button>
-                      <button
-                        onClick={() => setPreviewPage((p) => Math.min(412, p + 1))}
-                        disabled={previewPage >= 412}
-                        className="px-3 py-2 text-[9px] bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl font-black disabled:opacity-45 cursor-pointer uppercase tracking-wider text-slate-600 dark:text-zinc-300 hover:bg-slate-50"
-                      >
-                        NEXT PAGE →
-                      </button>
-                    </div>
+                      if (filePairs.length <= 1) return null;
+
+                      return (
+                        <div className="space-y-1 shrink-0">
+                          <label className="block text-[8px] uppercase tracking-widest font-black text-slate-400">
+                            Preview File Selection
+                          </label>
+                          <select
+                            value={selectedStoredFileName || ""}
+                            onChange={(e) => {
+                              setSelectedStoredFileName(e.target.value);
+                              setPdfNumPages(null);
+                            }}
+                            className="w-full bg-white dark:bg-zinc-950 border border-slate-250 dark:border-zinc-800 px-3 py-2 text-xs font-bold text-slate-800 dark:text-white rounded-lg focus:outline-none focus:border-emerald-500 cursor-pointer text-[11px]"
+                          >
+                            {filePairs.map((pair, idx) => (
+                              <option key={idx} value={pair.storedName}>
+                                {pair.originalName}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      );
+                    })()}
+
+                    {selectedStoredFileName ? (
+                      selectedStoredFileName.toLowerCase().endsWith(".pdf") ? (
+                        <div ref={pdfScrollContainerRef} className="flex-1 overflow-y-auto border border-slate-200 dark:border-zinc-800/80 rounded-xl bg-white dark:bg-zinc-950 p-3 flex flex-col items-center">
+                          <Document
+                            file={`/reports/${selectedStoredFileName}`}
+                            onLoadSuccess={({ numPages }) => {
+                              setPdfNumPages(numPages);
+                              const firstPage = getFirstSelectedPage(activeReviewDoc?.selectedPages, numPages);
+                              setTimeout(() => {
+                                if (pdfScrollContainerRef.current) {
+                                  const el = pdfScrollContainerRef.current.querySelector(`[data-page-number="${firstPage}"]`);
+                                  if (el) {
+                                    el.scrollIntoView({ behavior: "smooth", block: "start" });
+                                  }
+                                }
+                              }, 450);
+                            }}
+                            loading={
+                              <div className="flex flex-col items-center justify-center p-12 text-slate-500 font-mono text-[11px] uppercase tracking-widest gap-2">
+                                <span className="animate-pulse">Loading PDF Document...</span>
+                              </div>
+                            }
+                            error={
+                              <div className="flex flex-col items-center justify-center p-12 text-red-500 font-mono text-[11px] uppercase tracking-widest gap-2">
+                                <span>Failed to load PDF ({selectedStoredFileName})</span>
+                              </div>
+                            }
+                          >
+                            {Array.from({ length: pdfNumPages || 0 }, (_, i) => i + 1).map((pageNum) => (
+                              <div
+                                key={pageNum}
+                                data-page-number={pageNum}
+                                className="pdf-page-wrapper mb-6 bg-white dark:bg-zinc-900 p-2 shadow-md rounded-lg border border-slate-200/60 dark:border-zinc-800/50 inline-block w-full max-w-[400px]"
+                              >
+                                <Page
+                                  pageNumber={pageNum}
+                                  renderTextLayer={false}
+                                  renderAnnotationLayer={false}
+                                  width={340}
+                                  loading={
+                                    <div className="h-48 flex items-center justify-center text-[10px] font-mono text-slate-400">
+                                      Rendering page {pageNum}...
+                                    </div>
+                                  }
+                                />
+                                <div className="text-center mt-2 text-[9px] font-mono font-bold text-slate-400 border-t border-slate-100 dark:border-zinc-800 pt-1">
+                                  PAGE {pageNum} OF {pdfNumPages || "?"}
+                                </div>
+                              </div>
+                            ))}
+                          </Document>
+                        </div>
+                      ) : (
+                        <div className="flex-1 overflow-y-auto border border-slate-200 dark:border-zinc-800/80 rounded-xl bg-white dark:bg-zinc-950 p-4 flex items-center justify-center overflow-hidden">
+                          <img
+                            src={`/reports/${selectedStoredFileName}`}
+                            alt="Uploaded preview"
+                            referrerPolicy="no-referrer"
+                            className="max-w-full max-h-full object-contain rounded-lg shadow-md"
+                          />
+                        </div>
+                      )
+                    ) : (
+                      <div className="flex-1 flex flex-col items-center justify-center text-center p-6 bg-white dark:bg-zinc-950 rounded-xl border border-slate-200 dark:border-zinc-800 text-slate-400 dark:text-zinc-500">
+                        <FileText className="w-8 h-8 text-slate-300 mb-2" />
+                        <span>No PDF source file is uploaded for this record yet.</span>
+                        <span className="text-[10px] mt-1.5 text-slate-400">Please upload a file under "Cohort File Sources" above.</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 {/* Right Side: Parsed Values Editor Form (organized by financial categories) */}
-                <div className="lg:col-span-7 space-y-6">
+                <div className="lg:col-span-7 h-full lg:overflow-y-auto space-y-6 pb-20 pr-2">
                   {["incomeStatement", "balanceSheet", "cashFlow", "ratios", "growth", "advanced"].map((category) => {
                     const fields = activeReviewDoc?.extractedData?.[category] || {};
                     const fieldIds = Object.keys(fields);
@@ -2171,7 +2302,6 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
               : reviewDocs.find((d) => d.fileId === activePreviewDocId)?.selectedPages || "1-15,45-60"
         }
         onApply={handleApplyPageSelection}
-        getMockDocumentContent={getMockDocumentContent}
         files={
           activePreviewAttachmentId === "markdown"
             ? (mdFile ? [mdFile] : undefined)

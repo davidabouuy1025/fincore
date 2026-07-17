@@ -18,7 +18,7 @@ interface PageSelectionModalProps {
   companyName: string;
   initialSelectedPages: string;
   onApply: (selectedPages: string) => void;
-  getMockDocumentContent: (company: string, page: number) => React.ReactNode;
+  getMockDocumentContent?: (company: string, page: number) => React.ReactNode;
   files?: File[];
   storedFileName?: string;
   docType?: string;
@@ -311,7 +311,14 @@ export function PageSelectionModal({
       );
     }
 
-    return getMockDocumentContent(companyName, previewPage);
+    if (getMockDocumentContent) {
+      return getMockDocumentContent(companyName, previewPage);
+    }
+    return (
+      <div className="flex flex-col items-center justify-center p-12 text-slate-500 font-mono text-[11px] uppercase tracking-widest gap-2">
+        <span>No PDF source found</span>
+      </div>
+    );
   };
 
   // Add specific page to selection
