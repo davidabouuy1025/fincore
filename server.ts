@@ -191,7 +191,11 @@ function findSavedMarkdownByStoredFileName(storedFileName: string): string {
       try {
         const content = fs.readFileSync(entryPath, "utf-8");
         const report = parser.parse(content).CompanyReport;
-        if (report?.Metadata?.StoredFileName === storedFileName) {
+        const fileVal = report?.Metadata?.StoredFileName;
+        const isMatch = Array.isArray(fileVal)
+          ? fileVal.includes(storedFileName)
+          : fileVal === storedFileName;
+        if (isMatch) {
           return report.Markdown?.pureMarkdown || "";
         }
       } catch (err) {
@@ -394,14 +398,89 @@ async function startServer() {
         const pureMarkdown = report.markdown?.pureMarkdown || report.Markdown?.pureMarkdown || report.pureMarkdown || "";
         companyName = toTitleCase(companyName);
 
+        if (!companyName?.trim()) {
+          return res.status(400).json({
+            error: "Company name cannot be empty"
+          });
+        }
+
+        // Parse storedFileName and originalFileName into lists for multi-file support in XML tags
+        let storedFilesArray: string[] = [];
+        if (storedFileName) {
+          if (Array.isArray(storedFileName)) {
+            storedFilesArray = storedFileName;
+          } else {
+            storedFilesArray = String(storedFileName)
+              .split(",")
+              .map((f) => f.trim())
+              .filter(Boolean);
+          }
+        }
+
+        let originalFilesArray: string[] = [];
+        if (originalFileName) {
+          if (Array.isArray(originalFileName)) {
+            originalFilesArray = originalFileName;
+          } else {
+            originalFilesArray = String(originalFileName)
+              .split(",")
+              .map((f) => f.trim())
+              .filter(Boolean);
+          }
+        }
+
+        // Rename the physical uploaded PDFs to COMPANY_YEAR.pdf, COMPANY_YEAR_2.pdf, etc.
+        const cleanCompany = companyName.toUpperCase().replace(/[^A-Z0-9]/g, "_").replace(/_+/g, "_").replace(/(^_|_$)/g, "");
+        const companyBase = cleanCompany || "COMPANY";
+        const baseName = `${companyBase}_${reportYear}`;
+
+        const updatedStoredFiles: string[] = [];
+        const updatedOriginalFiles: string[] = [];
+
+        for (let i = 0; i < storedFilesArray.length; i++) {
+          const oldFile = storedFilesArray[i];
+          const origFile = originalFilesArray[i] || oldFile;
+          const ext = path.extname(oldFile) || ".pdf";
+
+          let targetName = "";
+          if (i === 0) {
+            targetName = `${baseName}${ext}`;
+          } else {
+            targetName = `${baseName}_${i + 1}${ext}`;
+          }
+
+          const oldPath = path.join(STORAGE_ROOT, oldFile);
+          const newPath = path.join(STORAGE_ROOT, targetName);
+
+          if (fs.existsSync(oldPath)) {
+            if (oldPath !== newPath) {
+              if (fs.existsSync(newPath)) {
+                try { fs.unlinkSync(newPath); } catch {}
+              }
+              try {
+                fs.renameSync(oldPath, newPath);
+                console.log(`[RENAME] Renamed uploaded PDF ${oldFile} to ${targetName}`);
+              } catch (renameErr) {
+                console.error(`[WARN] Failed to rename uploaded PDF ${oldFile} to ${targetName}:`, renameErr);
+              }
+            }
+          }
+
+          updatedStoredFiles.push(targetName);
+          updatedOriginalFiles.push(origFile);
+        }
+
+        storedFilesArray = updatedStoredFiles;
+        originalFilesArray = updatedOriginalFiles;
+
         const reportData = {
           CompanyReport: {
             Metadata: {
               CompanyName: companyName,
               FinancialYear: reportYear,
               Sector: reportSector,
-              OriginalFileName: originalFileName,
-              StoredFileName: storedFileName,
+              OriginalFileName: originalFilesArray.length > 0 ? (originalFilesArray.length === 1 ? originalFilesArray[0] : originalFilesArray) : originalFileName,
+              StoredFileName: storedFilesArray.length > 0 ? (storedFilesArray.length === 1 ? storedFilesArray[0] : storedFilesArray) : storedFileName,
               Currency: "MYR '000",
               DocType: docType,
               ProcessedAt: new Date().toISOString(),
@@ -418,19 +497,26 @@ async function startServer() {
         const sectorDir = path.join(DB_ROOT, String(reportYear), reportSector);
         if (!fs.existsSync(sectorDir)) fs.mkdirSync(sectorDir, { recursive: true });
 
-        if (!companyName?.trim()) {
-          return res.status(400).json({
-            error: "Company name cannot be empty"
-          });
+        // Determine exact XML filename utilizing the storedFileName if available
+        let fileName = "";
+        if (storedFilesArray.length > 0) {
+          const firstFile = storedFilesArray[0];
+          if (firstFile) {
+            const baseName = path.basename(firstFile, path.extname(firstFile));
+            fileName = `${baseName}.xml`;
+          }
         }
 
-        const safeName = companyName.replace(/[^a-zA-Z0-9]/g, "_").slice(0, 60);
-        const fileName = `${safeName}.xml`;
+        if (!fileName) {
+          const safeName = companyName.replace(/[^a-zA-Z0-9]/g, "_").slice(0, 60);
+          fileName = `${safeName}.xml`;
+        }
+
         const targetPath = path.join(sectorDir, fileName);
 
         console.log({ companyName, storedFileName, originalFileName }, '\n');
 
-        if (storedFileName) {
+        if (storedFilesArray.length > 0) {
           const parser = new XMLParser({ ignoreAttributes: false, parseTagValue: false });
           const existingXmlFiles = fs.readdirSync(sectorDir).filter((f) => f.endsWith(".xml"));
           for (const existingFile of existingXmlFiles) {
@@ -440,7 +526,13 @@ async function startServer() {
             try {
               const existingContent = fs.readFileSync(existingPath, "utf-8");
               const existingReport = parser.parse(existingContent).CompanyReport;
-              if (existingReport?.Metadata?.StoredFileName === storedFileName) {
+              const existingStored = existingReport?.Metadata?.StoredFileName;
+              const existingArr = Array.isArray(existingStored)
+                ? existingStored
+                : String(existingStored || "").split(",").map(f => f.trim()).filter(Boolean);
+
+              const hasOverlap = existingArr.some(f => storedFilesArray.includes(f));
+              if (hasOverlap) {
                 fs.unlinkSync(existingPath);
               }
             } catch (err) {
@@ -459,7 +551,7 @@ async function startServer() {
           year: reportYear,
         });
 
-        console.log(`[SAVED] ${companyName} → ${reportSector}/${reportYear}`);
+        console.log(`[SAVED] ${companyName} → ${reportSector}/${reportYear} as ${fileName}`);
       }
 
       res.json({ success: true, saved });
@@ -740,14 +832,25 @@ async function startServer() {
 
       let sourceMarkdown = typeof markdown === "string" ? markdown : "";
       if (!sourceMarkdown.trim() && storedFileName) {
-        sourceMarkdown = findSavedMarkdownByStoredFileName(storedFileName);
+        const filesToSearch = String(storedFileName).split(",").map(f => f.trim()).filter(Boolean);
+        for (const file of filesToSearch) {
+          const md = findSavedMarkdownByStoredFileName(file);
+          if (md.trim()) {
+            sourceMarkdown += (sourceMarkdown ? "\n\n" : "") + md;
+          }
+        }
       }
 
       if (!sourceMarkdown.trim() && storedFileName) {
-        const storedPath = path.join(STORAGE_ROOT, storedFileName);
-        if (fs.existsSync(storedPath)) {
-          const converted = await extractMarkdownFromStoredFile(storedPath, storedFileName);
-          sourceMarkdown = converted.markdown;
+        const filesToSearch = String(storedFileName).split(",").map(f => f.trim()).filter(Boolean);
+        for (const file of filesToSearch) {
+          const storedPath = path.join(STORAGE_ROOT, file);
+          if (fs.existsSync(storedPath)) {
+            const converted = await extractMarkdownFromStoredFile(storedPath, file);
+            if (converted.markdown) {
+              sourceMarkdown += (sourceMarkdown ? "\n\n" : "") + converted.markdown;
+            }
+          }
         }
       }
 
