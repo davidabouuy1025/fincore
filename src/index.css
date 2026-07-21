@@ -5,57 +5,210 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
   --font-serif: "Inter", ui-sans-serif, system-ui, sans-serif;
-  
-  --color-hacker-green: #0f766e; /* Professional slate teal */
-  --color-hacker-green-bright: #0d9488; /* Active vibrant teal */
-  --color-hacker-green-dim: #64748b; /* Cool slate-gray for text */
-  --color-hacker-bg: #f8fafc; /* Warm, soft canvas */
-  --color-hacker-border: #cbd5e1; /* Clear high-contrast borders */
+
+  /* Interactive Grid */
+  --color-grid-bg: rgb(252, 250, 245);
+  --color-grid-line: rgb(252, 250, 245);
+  --color-grid-highlight: rgb(232, 230, 215);
+
+  /* Splash Cursor */
+  --color-splash-cursor: rgb(106, 153, 78);
+
+  /* Sidebar */
+  --color-sidebar-bckgrd-color: rgb(255, 255, 255);
+  --color-sidebar-icon: rgb(144, 161, 185);
+  --color-sidebar-icon-active: rgb(9, 79, 44);
+  --color-sidebar-core-text: rgb(6, 95, 70);
+
+  /* InfoView */
+  --color-hacker-infoview-icon: rgba(255, 255, 255, 1);
+  --color-hacker-infoview-logo: rgb(0, 0, 0);
+  --color-hacker-infoview-logo-hover: rgb(13, 89, 28);
+
+  /* NewsView */
+  --color-newsview-box-bckgrd: rgb(255, 255, 255);
+  --color-newsview-box-title: rgb(0, 0, 0);
+  --color-newsview-box-title-hover: rgb(56, 102, 65);
+  --color-newsview-dedupl-box: rgb(255, 255, 255);
+  --color-newsview-dedupl-box-text: rgb(0, 0, 0);
+
+  /* UploadView */
+  --color-toggle-idle: rgba(56, 102, 65, 0.2);
+  --color-toggle-active: rgba(56, 102, 65, 0.9);
+
+  /* --- SEMANTIC ALIASES (The magic mapping) --- */
+  --color-hacker-bg: rgb(252, 250, 245);
+  --color-hacker-text-main: rgb(0, 0, 0);
+  --color-hacker-text-submain: (0, 0, 0);
+  --color-hacker-text-accent: rgb(56, 102, 65);
+  --color-hacker-border: rgb(106, 153, 78);
+  --color-hacker-border-green: rgb(106, 153, 78);
+  --color-hacker-card-bg: rgba(255, 255, 255, 0.92);
+  --color-hacker-card-hover: rgba(255, 255, 255, 0.98);
+  --color-hacker-universal-bckgrd: rgba(255, 255, 255, 1);
+  --color-hacker-black-white: rgb(0, 0, 0);
+  --color-hacker-white-black: rgb(255,255,255);
+}
+
+@layer base {
+  .dark {
+    /* Theme variable overrides */
+    --color-hacker-bg: var(--color-hunter-green-100);
+    --color-hacker-text-main: rgb(37, 210, 37);
+    --color-hacker-text-submain: rgb(28, 174, 28);
+    --color-hacker-text-accent: rgb(17, 255, 0);
+    --color-hacker-border: rgb(255, 255, 255);
+    --color-hacker-border-green: rgb(37, 210, 37);
+    --color-hacker-card-bg: rgba(22, 41, 26, 0.6);
+    --color-hacker-card-hover: rgba(34, 61, 39, 0.85);
+    --color-hacker-universal-bckgrd: rgb(0, 0, 0);
+    --color-hacker-black-white: rgb(255, 255, 255);
+    --color-hacker-white-black: rgb(0,0,0);
+
+    /* Sidebar */
+    --color-sidebar-bckgrd-color: rgb(0, 0, 0);
+    --color-sidebar-icon: rgba(120, 255, 124, 0.413);
+    --color-sidebar-icon-active: rgb(13, 255, 0);
+    --color-sidebar-core-text: rgb(255, 255, 255);
+
+    /* InfoView */
+    --color-hacker-infoview-icon: rgb(255, 255, 255);
+    --color-hacker-infoview-logo: rgb(0, 192, 0);
+    --color-hacker-infoview-logo-hover: rgb(129, 0, 0);
+
+    /* NewsView */
+    --color-newsview-box-bckgrd: rgba(255, 255, 255, 0);
+    --color-newsview-box-title: rgb(255, 255, 255);
+    --color-newsview-box-title-hover: rgb(17, 255, 0);
+    --color-newsview-box-border: rgb(255, 255, 255);
+    --color-newsview-box-border-hover: rgb(17, 255, 0);
+    --color-newsview-box-subdetail: rgb(100, 100, 100);
+    --color-newsview-dedupl-box: rgb(0, 0, 0);
+    --color-newsview-dedupl-box-text: rgb(28, 174, 28);
+
+    /* UploadView */
+    --color-toggle-idle: rgba(0, 255, 0, 0.15);
+    --color-toggle-active: rgba(0, 255, 0, 1);
+
+    /* Interactive Grid */
+    --color-grid-bg: #0b140d;
+    --color-grid-line: #0b140d;
+    --color-grid-highlight: #2d4122;
+  }
+
+  /* Force text elements to respect dark variables */
+  /* .dark h1,
+  .dark h2,
+  .dark h3 {
+    color: var(--color-hacker-text-main) !important;
+  } */
+
+  /* .dark p,
+  .dark span:not(.infoview-logo):not([class*="text-[9px]"]) {
+    color: var(--color-hacker-text-accent) !important;
+  } */
+
+  /* Force global layout wrappers and background structures */
+  .dark .min-h-screen,
+  .dark section {
+    background-color: var(--color-hacker-bg) !important;
+  }
+
+  /* Force fix card grids without code modification */
+  .dark div[role="article"] {
+    background-color: var(--color-hacker-card-bg) !important;
+    border-color: var(--color-hacker-border) !important;
+    color: var(--color-hacker-text-main) !important;
+  }
 }
 
 @layer base {
   body {
     background-color: var(--color-hacker-bg);
-    color: #1e293b; /* Deep slate gray for ultra-crisp text */
+    color: var(--color-hacker-text-main);
+    /* Now targets our dynamic semantic rule */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    transition: background-color 0.3s ease, color 0.3s ease;
   }
 
+  /* Update your scrollbars to use the dynamic theme variables */
   * {
     scrollbar-width: thin;
-    scrollbar-color: #94a3b8 #f1f5f9;
-  }
-
-  *::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-
-  *::-webkit-scrollbar-track {
-    background: #f1f5f9;
-  }
-
-  *::-webkit-scrollbar-thumb {
-    background-color: #cbd5e1;
-    border-radius: 4px;
+    scrollbar-color: var(--color-sage-green-600) var(--color-hacker-bg);
   }
 }
 
+/* Customized magnetic/glitch card animation */
+@keyframes card-glitch-anim {
+  0% {
+    transform: translate3d(var(--x, 0px), var(--y, 0px), 0px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+    filter: hue-rotate(0deg);
+  }
+
+  95% {
+    transform: translate3d(var(--x, 0px), var(--y, 0px), 0px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+    filter: hue-rotate(0deg);
+  }
+
+  96% {
+    transform: translate3d(calc(var(--x, 0px) + 3px), calc(var(--y, 0px) - 2px), 0px) skewX(2deg) scale(1.01);
+    filter: contrast(1.15) saturate(1.1);
+  }
+
+  97% {
+    transform: translate3d(calc(var(--x, 0px) - 2px), calc(var(--y, 0px) + 3px), 0px) skewY(-1deg);
+  }
+
+  98% {
+    transform: translate3d(var(--x, 0px), var(--y, 0px), 0px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+  }
+
+  99% {
+    transform: translate3d(calc(var(--x, 0px) + 1px), calc(var(--y, 0px) - 2px), 0px) scale(0.99);
+    filter: hue-rotate(45deg);
+  }
+
+  100% {
+    transform: translate3d(var(--x, 0px), var(--y, 0px), 0px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+    filter: hue-rotate(0deg);
+  }
+}
+
+/* For AI extraction button */
+@keyframes flow-glow {
+  0% {
+    background-position: 0% 50%;
+  }
+
+  100% {
+    background-position: 200% 50%;
+  }
+}
+
+.glitch-hover-effect {
+  transition: transform 0.15s cubic-bezier(0.25, 1, 0.5, 1), box-shadow 0.15s ease;
+  transform-style: preserve-3d;
+  will-change: transform, filter;
+}
+
+.glitch-hover-effect:hover {
+  animation: card-glitch-anim 3s infinite linear;
+  box-shadow: 0 10px 25px -5px rgba(56, 102, 65, 0.15), 0 8px 16px -6px rgba(56, 102, 65, 0.12);
+}
+
 .glow-text {
-  /* No text-shadow to prevent blurriness and visual fatigue */
   text-shadow: none;
 }
 
 .glow-green {
-  /* Subtle soft card shadows instead of glowing green outlines */
   box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
 }
 
 .matrix-bg {
-  display: none; /* Strip out matrix rain and backgrounds to focus on financial data */
+  display: none;
 }
 
-/* Completely remove screen overlays and flickers to maximize legibility */
 .scanline {
   display: none;
 }
@@ -63,4 +216,3 @@
 .crt-flicker {
   animation: none;
 }
-

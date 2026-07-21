@@ -16,10 +16,10 @@ interface StepIndicatorProps {
 
 export function StepIndicator({ step, label, active, completed }: StepIndicatorProps) {
   return (
-    <div className={cn("flex items-center gap-3", active ? "text-hacker-green" : completed ? "text-hacker-green-dim" : "text-hacker-green-dim/50")}>
+    <div className={cn("flex items-center gap-3", active ? "text-[var(--color-hacker-text-main)]" : completed ? "text-[var(--color-hacker-text-main)]" : "text-[var(--color-hacker-text-main)]")}>
       <div className={cn(
         "w-8 h-8 flex items-center justify-center text-xs font-bold border transition-all",
-        active ? "border-hacker-green bg-hacker-green text-black" : completed ? "border-hacker-green bg-transparent" : "border-hacker-border"
+        active ? "border-[var(--color-hacker-black-white)] bg-hacker-text-submain text-black" : completed ? "border-hacker-green" : "border-hacker-text-main"
       )}>
         {completed ? <CheckCircle2 className="w-4 h-4" /> : step}
       </div>
