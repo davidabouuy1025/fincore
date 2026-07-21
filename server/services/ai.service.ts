@@ -1,12 +1,18 @@
 import { IAiService } from "../controllers/report.controller";
 import { FINANCIAL_DICTIONARY } from "../config/dictionary";
 import { ExtractionService } from "./extraction.service";
+import path from "path";
+import fs from "fs";
+import { performOCR, performPdfOCR, toPureMarkdown } from "../parser";
 
 export class AiService implements IAiService {
   private extractionService: ExtractionService;
+  private storageRoot: string;
 
   constructor(extractionService?: ExtractionService) {
     this.extractionService = extractionService || new ExtractionService();
+    const dbRoot = process.env.FINCORE_DB_PATH || "./fincore_db";
+    this.storageRoot = path.join(dbRoot, "original_reports");
   }
 
   /**
@@ -39,24 +45,25 @@ export class AiService implements IAiService {
           2
         )}`;
 
-    const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: "gemini-2.5-flash",
-        messages: [{ role: "user", content: prompt }],
-        stream: false,
-        max_tokens: 600,
-      }),
-    });
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.2,
+          },
+        }),
+      }
+    );
 
     const data: any = await response.json();
+    const text = data.candidates?.[0]?.content?.parts?.map((part: any) => part.text || "").join("") || "";
 
-    if (data.choices?.[0]?.message?.content) {
-      return data.choices[0].message.content;
+    if (text) {
+      return text;
     } else {
       throw new Error(data.error?.message || "Invalid response from AI");
     }

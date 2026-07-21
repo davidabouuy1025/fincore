@@ -1,14 +1,21 @@
 import { Request, Response } from "express";
+import path from "path";
+import fs from "fs";
+import { performOCR, performPdfOCR, toPureMarkdown } from "../parser";
 
 // Placeholder interfaces for injected services
 export interface IOcrService {
-  extractRawText(file: Express.Multer.File): Promise<{ text: string; docType: string }>;
+  extractRawText(file: Express.Multer.File, selectedPages?: string): Promise<{ text: string; docType: string }>;
 }
 
 export interface IExtractionService {
   processFinancials(text: string, originalName: string): {
     suggestedCompanyName: string;
     suggestedSector: string;
+    suggestedYear: string;
+    companyName: string;
+    year: string;
+    sector: string;
     extractedData: any;
   };
   extractedDataToFinancials(extractedData: any): Record<string, Record<string, string | null>>;
@@ -17,6 +24,7 @@ export interface IExtractionService {
 export interface IStorageService {
   saveReport(report: any, year: string, sector: string): Promise<any>;
   getReportsByYearAndSector(year: string, sector: string): any[];
+  getMultiYearReports(year: string, sector: string): any[];
   getArchiveSummary(): any[];
   findSavedMarkdownByStoredFileName(storedFileName: string): string;
 }
@@ -46,10 +54,11 @@ export class ReportController {
       }
 
       const parsed = [];
+      const selectedPages = req.body.selectedPages || "";
 
       for (const file of files) {
         // 1. Process files via OCR Layer
-        const { text, docType } = await this.ocrService.extractRawText(file);
+        const { text, docType } = await this.ocrService.extractRawText(file, selectedPages);
 
         // 2. Pass textual output to extraction analysis engine
         const analysis = this.extractionService.processFinancials(text, file.originalname);
@@ -65,6 +74,8 @@ export class ReportController {
           ...analysis,
           rawTextLength: text.length,
         });
+
+        console.log(`[PARSED] ${file.originalname} → ${analysis.suggestedCompanyName} (${docType})`);
       }
 
       return res.json({ success: true, parsed });
@@ -113,6 +124,20 @@ export class ReportController {
   };
 
   /**
+   * GET /api/reports-multi/:year/:sector
+   * Retrieves reports for up to 5 consecutive years
+   */
+  getMultiYearReports = async (req: Request, res: Response) => {
+    try {
+      const { year, sector } = req.params;
+      const reports = this.storageService.getMultiYearReports(year, sector);
+      return res.json(reports);
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  };
+
+  /**
    * GET /api/archive
    * Structural summary tree map retrieval
    */
@@ -150,6 +175,21 @@ export class ReportController {
       let sourceMarkdown = typeof markdown === "string" ? markdown : "";
       if (!sourceMarkdown.trim() && storedFileName) {
         sourceMarkdown = this.storageService.findSavedMarkdownByStoredFileName(storedFileName);
+      }
+
+      if (!sourceMarkdown.trim() && storedFileName) {
+        const storageRoot = path.join(process.env.FINCORE_DB_PATH || "./fincore_db", "original_reports");
+        const filesToSearch = String(storedFileName).split(",").map(f => f.trim()).filter(Boolean);
+        for (const file of filesToSearch) {
+          const storedPath = path.join(storageRoot, file);
+          if (fs.existsSync(storedPath)) {
+            const converted = await this.ocrService.extractRawText({ path: storedPath, originalname: file, mimetype: "application/pdf" } as any);
+            const pureMd = toPureMarkdown(converted.text, file);
+            if (pureMd) {
+              sourceMarkdown += (sourceMarkdown ? "\n\n" : "") + pureMd;
+            }
+          }
+        }
       }
 
       if (!sourceMarkdown.trim()) {

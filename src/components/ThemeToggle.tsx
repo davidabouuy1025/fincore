@@ -24,7 +24,7 @@ export function ThemeToggle() {
   return (
     <button
       onClick={() => setIsDark(!isDark)}
-      className="fixed p-2 rounded-lg border border-[var(--color-hacker-border)] bg-[var(--color-hacker-card-bg)] text-[var(--color-hacker-text-accent)] transition-all hover:scale-105"
+      className="fixed top-5 right-5 z-50 p-2 rounded-lg border border-[var(--color-hacker-border)] bg-[var(--color-hacker-card-bg)] text-[var(--color-hacker-text-accent)] transition-all hover:scale-105 cursor-pointer shadow-md"
       aria-label="Toggle Dark Mode"
     >
       {isDark ? <Sun className="w-4.5 h-4.5" /> : <Moon className="w-4.5 h-4.5" />}

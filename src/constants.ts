@@ -29,6 +29,8 @@ export const FIELD_LABELS: Record<string, string> = {
   effectiveTaxRate: "Effective Tax Rate",
   netProfit: "Net Profit / PAT",
   retainedEarnings: "Retained Earnings",
+  financeIncome: "Finance Income",
+  financeCost: "Finance Cost",
 
   // Balance Sheet
   totalAssets: "Total Assets",
@@ -80,6 +82,7 @@ export const FIELD_LABELS: Record<string, string> = {
   eps: "Earnings Per Share (EPS)",
   dilutedEps: "Diluted EPS",
   peRatio: "P/E Ratio",
+  totalDividendPaid: "Total Dividend Paid",
   dividendYield: "Dividend Yield",
   dividendPerShare: "Dividend Per Share",
   dividendPayoutRatio: "Payout Ratio",
@@ -89,6 +92,13 @@ export const FIELD_LABELS: Record<string, string> = {
   revenueGrowth: "Revenue Growth",
   netIncomeGrowth: "Net Income Growth",
   cagr: "CAGR",
+
+  // Market Data
+  sharePrice: "Share Price",
+  marketCapitalization: "Market Capitalization",
+  sharesOutstanding: "Shares Outstanding",
+  weightedAverageSharesOutstanding: "Weighted Average Shares Outstanding",
+  dilutedSharesOutstanding: "Diluted Shares Outstanding",
 
   // Advanced
   enterpriseValue: "Enterprise Value",
@@ -105,6 +115,7 @@ export const CATEGORY_LABELS: Record<string, string> = {
   cashFlow: "💵 Cash Flow",
   ratios: "📈 Ratios & Metrics",
   growth: "📉 Growth Metrics",
+  marketData: "💰 Market Data",
   advanced: "🧠 Advanced Metrics",
 };
 
@@ -126,6 +137,9 @@ export const FINANCIAL_DICTIONARY: Record<string, { category: string }> = {
   effectiveTaxRate: { category: "incomeStatement" },
   netProfit: { category: "incomeStatement" },
   retainedEarnings: { category: "incomeStatement" },
+  financeIncome: { category: "incomeStatement" },
+  financeCost: { category: "incomeStatement" },
+
   totalAssets: { category: "balanceSheet" },
   currentAssets: { category: "balanceSheet" },
   nonCurrentAssets: { category: "balanceSheet" },
@@ -147,11 +161,13 @@ export const FINANCIAL_DICTIONARY: Record<string, { category: string }> = {
   commonStock: { category: "balanceSheet" },
   preferredStock: { category: "balanceSheet" },
   paidInCapital: { category: "balanceSheet" },
+
   operatingCashFlow: { category: "cashFlow" },
   investingCashFlow: { category: "cashFlow" },
   financingCashFlow: { category: "cashFlow" },
   freeCashFlow: { category: "cashFlow" },
   capitalExpenditure: { category: "cashFlow" },
+
   roe: { category: "ratios" },
   roa: { category: "ratios" },
   roic: { category: "ratios" },
@@ -171,13 +187,22 @@ export const FINANCIAL_DICTIONARY: Record<string, { category: string }> = {
   eps: { category: "ratios" },
   dilutedEps: { category: "ratios" },
   peRatio: { category: "ratios" },
+  totalDividendPaid: {category: "ratios"},
   dividendYield: { category: "ratios" },
   dividendPerShare: { category: "ratios" },
   dividendPayoutRatio: { category: "ratios" },
   retentionRatio: { category: "ratios" },
+
   revenueGrowth: { category: "growth" },
   netIncomeGrowth: { category: "growth" },
   cagr: { category: "growth" },
+
+  sharePrice: {category: "marketData"},
+  marketCapitalization: {category: "marketData"},
+  sharesOutstanding: {category: "marketData"},
+  weightedAverageSharesOutstanding: {category: "marketData"},
+  dilutedSharesOutstanding: {category: "marketData"},
+
   enterpriseValue: { category: "advanced" },
   evEbitda: { category: "advanced" },
   fcfYield: { category: "advanced text-right" },

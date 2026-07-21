@@ -47,6 +47,7 @@ const router = Router();
 router.post("/parse", upload.array("reports"), reportController.parseReports);
 router.post("/save", reportController.saveReports);
 router.get("/reports/:year/:sector", reportController.getReports);
+router.get("/reports-multi/:year/:sector", reportController.getMultiYearReports);
 router.get("/archive", reportController.getArchive);
 router.post("/ai-insights", reportController.getAiInsights);
 router.post("/ai-reanalyze", reportController.reanalyze);

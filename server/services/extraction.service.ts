@@ -4,6 +4,7 @@ import {
   ExtractedFinancialPayload, 
   AnalysisOutput 
 } from "../types/index";
+import { detectCompanyName, detectSector, detectYear } from "../utils";
 
 export class ExtractionService {
   
@@ -11,16 +12,21 @@ export class ExtractionService {
    * Main entry point to process unstructured text into clean domain figures.
    * Matches the parser and utils logic imported and executed by server.ts.
    */
-  public processFinancials(text: string, originalFileName: string): AnalysisOutput {
+  public processFinancials(text: string, originalFileName: string): AnalysisOutput & { suggestedYear: string; companyName: string; year: string; sector: string } {
     const normalizedText = this.normalizeText(text);
 
-    const suggestedCompanyName = this.detectCompanyName(normalizedText, originalFileName);
-    const suggestedSector = this.detectSector(normalizedText, "TECHNOLOGY");
+    const suggestedCompanyName = detectCompanyName(normalizedText, originalFileName);
+    const suggestedSector = detectSector(normalizedText, "TECHNOLOGY");
+    const suggestedYear = detectYear(normalizedText, "2025");
     const extractedData = this.extractAllMetrics(normalizedText);
 
     return {
       suggestedCompanyName,
       suggestedSector,
+      suggestedYear,
+      companyName: suggestedCompanyName,
+      sector: suggestedSector,
+      year: suggestedYear,
       extractedData,
     };
   }
@@ -70,79 +76,6 @@ export class ExtractionService {
       .join("\n")
       .replace(/\n{3,}/g, "\n\n")
       .trim();
-  }
-
-  /**
-   * Evaluates corporate names using regional Malaysian structural naming markers.
-   * Matches the exact RegEx patterns and filename-cleaning fallbacks in utils.ts.
-   */
-  private detectCompanyName(text: string, fileName: string): string {
-    const patterns = [
-      /([A-Z0-9\s,&.\-\(\)]+)\s+(SDN\s+BHD|BHD|BERHAD|Sdn\s+Bhd|Sdn\.\s+Bhd\.|Bhd\.)/i,
-      /([A-Z0-9\s,&.\-\(\)]+)\s+(LIMITED|LTD|CORP|INC|HOLDINGS|GROUP)/i,
-    ];
-
-    for (const p of patterns) {
-      const match = text.match(p);
-      if (match && match[1]) {
-        const name = match[1].trim().toUpperCase();
-        const suffix = match[2].trim().toUpperCase();
-        if (name.length > 2 && name.length < 100 && !["FOR", "THE", "ANNUAL REPORT", "OF"].includes(name)) {
-          return `${name} ${suffix}`;
-        }
-      }
-    }
-
-    // Fallback to cleaning the filename
-    let baseName = fileName.replace(/\.[^/.]+$/, ""); // strip extension
-    baseName = baseName.replace(/^\d+-/, ""); // strip timestamp prefix e.g. 171822...-
-    baseName = baseName.replace(/_/g, " ");
-    baseName = baseName.replace(/pasted-\d+/i, "PASTED DOCUMENT");
-    baseName = baseName.toUpperCase().trim();
-    
-    return baseName || "UNKNOWN COMPANY";
-  }
-
-  /**
-   * Identifies the primary operational sector baseline via token score checks.
-   * Matches the exact keyword score evaluation matrix defined in utils.ts.
-   */
-  private detectSector(text: string, defaultSector = "TECHNOLOGY"): string {
-    const content = text.toLowerCase();
-
-    const sectorKeywords: Record<string, string[]> = {
-      TECHNOLOGY: ["software", "semiconductor", "technology", "hardware", "digital", "data center", "it solutions", "cybersecurity", "telecommunication"],
-      PLANTATION: ["plantation", "palm oil", "oil palm", "agriculture", "rubber", "harvest", "crop"],
-      FINANCIAL_SERVICES: ["banking", "finance", "financial", "insurance", "investment", "takaful", "credit", "asset management"],
-      CONSUMER_PRODUCTS: ["beverage", "food", "retail", "consumer", "merchandise", "household", "fmcg", "supermarket"],
-      INDUSTRIAL_PRODUCTS: ["manufacturing", "chemical", "industrial", "steel", "cement", "engineering", "metal", "plastic"],
-      REITS: ["reit", "real estate investment trust", "trust", "rental income", "shopping mall"],
-      ENERGY: ["petroleum", "oil and gas", "fuel", "energy", "solar", "coal", "power", "utility"],
-      HEALTHCARE: ["hospital", "pharma", "medical", "glove", "clinic", "healthcare", "therapy", "pharmaceutical"],
-      CONSTRUCTION: ["construction", "builder", "infrastructure", "contractor", "civil", "bridge", "machinery"],
-    };
-
-    const scores: Record<string, number> = {};
-    for (const [sector, kwList] of Object.entries(sectorKeywords)) {
-      scores[sector] = 0;
-      for (const kw of kwList) {
-        const regex = new RegExp("\\b" + kw + "\\b", "g");
-        const count = (content.match(regex) || []).length;
-        scores[sector] += count;
-      }
-    }
-
-    let leadingSector = defaultSector;
-    let maxScore = 0;
-
-    for (const [sector, score] of Object.entries(scores)) {
-      if (score > maxScore) {
-        maxScore = score;
-        leadingSector = sector;
-      }
-    }
-
-    return maxScore > 2 ? leadingSector : defaultSector;
   }
 
   /**

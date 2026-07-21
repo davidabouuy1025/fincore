@@ -5,14 +5,15 @@ import { ParsedDocument, CompanyReport, ArchiveEntry, Financials } from "./types
 import { NavBtn } from "./components/NavBtn";
 import { UploadView } from "./components/UploadView";
 import { DashboardView } from "./components/DashboardView";
-import { ArchiveView } from "./components/ArchiveView";
 import { DocumentViewerOverlay } from "./components/DocumentViewerOverlay";
 import { NewsView } from "./components/NewsView";
 import { FinCoreView } from "./components/FinCoreView";
 import { InfoView } from "./components/InfoView";
+import { ThemeToggle } from "./components/ThemeToggle";
 import SplashCursor from "./components/SplashCursor";
 import InteractiveGrid from "./components/InteractiveGrid";
 import { style } from "motion/react-client";
+import favicon from "../public/favicon.png";
 
 export default function App() {
   const [reports, setReports] = useState<CompanyReport[]>([]);
@@ -79,7 +80,7 @@ export default function App() {
   const loadReports = async (y: string, s: string, overrideView?: "upload" | "dashboard" | "archive" | "news" | "fincore" | "info") => {
     try {
       setAiInsight(null);
-      const res = await fetch(`/api/reports/${y}/${s}`);
+      const res = await fetch(`/api/reports-multi/${y}/${s}`);
       const data = await res.json();
       const arr = Array.isArray(data) ? data : [data];
       setReports(arr.filter(Boolean));
@@ -211,6 +212,8 @@ export default function App() {
         storedFileName: doc.storedFileName,
         originalFileName: doc.originalFileName,
         docType: doc.docType,
+        year: doc.year || year,
+        sector: doc.sector || sector,
       };
     });
 
@@ -261,6 +264,18 @@ export default function App() {
     );
   };
 
+  const updateDocumentYear = (docIndex: number, docYear: string) => {
+    setParsedDocuments((prev) =>
+      prev.map((doc, i) => (i === docIndex ? { ...doc, year: docYear } : doc))
+    );
+  };
+
+  const updateDocumentSector = (docIndex: number, docSector: string) => {
+    setParsedDocuments((prev) =>
+      prev.map((doc, i) => (i === docIndex ? { ...doc, sector: docSector } : doc))
+    );
+  };
+
   const toggleDocumentExpanded = (docIndex: number) => {
     setParsedDocuments((prev) =>
       prev.map((doc, i) => (i === docIndex ? { ...doc, isExpanded: !doc.isExpanded } : doc))
@@ -306,6 +321,9 @@ export default function App() {
       {/* Interactive Grid */}
       <InteractiveGrid />
 
+      {/* Floating Theme Toggle */}
+      <ThemeToggle />
+
       {/* Sidebar */}
       <nav className="fixed left-0 top-0 bottom-0 w-[75px] border-r border-hacker-border flex flex-col items-center py-8 gap-8 z-50 shadow-sm" style={{ backgroundColor: "var(--color-sidebar-bckgrd-color)" }}>
         <button
@@ -313,7 +331,11 @@ export default function App() {
           className={`flex flex-col items-center mb-4 group cursor-pointer transition-all hover:scale-105 ${view === "info" ? "scale-105" : ""}`}
         >
           <div className={`w-10 h-10 border flex items-center justify-center rounded-lg transition-all ${view === "info" ? "border-emerald-600 bg-emerald-50 text-emerald-800" : "border-emerald-600 bg-emerald-50 text-emerald-800 group-hover:border-hacker-green group-hover:text-hacker-green"}`}>
-            <TrendingUp className={`w-5 h-5 ${view === "info" ? "text-emerald-700" : "text-slate-400 group-hover:text-hacker-green"}`} />
+            <img
+              src={favicon}
+              alt="Favicon"
+              className="w-full h-full object-contain"
+            />
           </div>
           <span
             className="text-[8px] text-hacker-text-main font-extrabold tracking-[0.3em] mt-2 transition-colors"
@@ -358,12 +380,6 @@ export default function App() {
           active={view === "fincore"}
           onClick={() => setView("fincore")}
         />
-        <NavBtn
-          icon={<History />}
-          label="ARCHIVE"
-          active={view === "archive"}
-          onClick={() => setView("archive")}
-        />
 
         <div className="mt-auto flex flex-col items-center gap-1">
           <div className="w-2 h-2 rounded-full bg-sidebar-icon-active animate-pulse" />
@@ -395,6 +411,8 @@ export default function App() {
               setUploadStep={setUploadStep}
               updateDocumentName={updateDocumentName}
               updateDocumentField={updateDocumentField}
+              updateDocumentYear={updateDocumentYear}
+              updateDocumentSector={updateDocumentSector}
               toggleDocumentExpanded={toggleDocumentExpanded}
               removeDocument={removeDocument}
               addMoreDocuments={addMoreDocuments}
@@ -414,14 +432,7 @@ export default function App() {
               generateAIInsights={generateAIInsights}
               isGeneratingAi={isGeneratingAi}
               aiInsight={aiInsight}
-            />
-          )}
-
-          {view === "archive" && (
-            <ArchiveView
-              key="archive"
               archive={archive}
-              setView={setView}
               loadReports={loadReports}
             />
           )}
@@ -445,16 +456,6 @@ export default function App() {
 
           {view === "info" && (
             <InfoView key="info" />
-            // <TempView 
-            //   key="info"
-            //   reports={[]}
-            //   sector=""
-            //   year=""
-            //   setView={setView} 
-            //   setSelectedReport={setSelectedReport}
-            //   archive={archive}
-            //   loadReports={loadReports}
-            // />
           )}
         </AnimatePresence>
       </main>

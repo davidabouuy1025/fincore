@@ -225,11 +225,11 @@ export function DashboardView({
                   </td>
                 </tr>
 
-                <DataRow label="EBIT" id="ebit" cat="incomeStatement" reports={reports} tooltip="Earning Before Interest & Taxes"/>
-                <DataRow label="EBITDA" id="ebitda" cat="incomeStatement" reports={reports} tooltip="Earning Before Interest, Taxes, Depreciation & Amortilization"/>
-                <DataRow label="Gross Profit" id="grossProfit" cat="incomeStatement" reports={reports} tooltip="Revenue - Cost of Goods Sold (COGS)"/>
+                <DataRow label="EBIT" id="ebit" cat="incomeStatement" reports={reports} tooltip="Earning Before Interest & Taxes" />
+                <DataRow label="EBITDA" id="ebitda" cat="incomeStatement" reports={reports} tooltip="Earning Before Interest, Taxes, Depreciation & Amortilization" />
+                <DataRow label="Gross Profit" id="grossProfit" cat="incomeStatement" reports={reports} tooltip="Revenue - Cost of Goods Sold (COGS)" />
                 <DataRow label="Tax Expense" id="taxExpense" cat="incomeStatement" reports={reports} />
-                <DataRow label="Net Profit" id="netProfit" cat="incomeStatement" reports={reports} tooltip="EBIT - COGS"/>
+                <DataRow label="Net Profit" id="netProfit" cat="incomeStatement" reports={reports} tooltip="EBIT - COGS" />
                 <tr>
                   <td colSpan={reports.length + 1} className="py-2 bg-slate-50/30 dark:bg-hacker-card-hover/30">
                     <div className="h-[1px] bg-slate-100 dark:bg-hacker-border w-full"></div>
@@ -238,8 +238,8 @@ export function DashboardView({
 
                 <SectionRow label="ASSETS" colSpan={reports.length + 1} />
                 <DataRow label="Non-Current Assets" id="currentAssets" cat="balanceSheet" reports={reports} />
-                <DataRow label="PPE" id="ppe" cat="balanceSheet" reports={reports} tooltip="Property, Plant, Equipment"/>
-                <DataRow label="Intangible Assets" id="intangibleAssets" cat="balanceSheet" reports={reports} tooltip="Valued assets but not physical"/>
+                <DataRow label="PPE" id="ppe" cat="balanceSheet" reports={reports} tooltip="Property, Plant, Equipment" />
+                <DataRow label="Intangible Assets" id="intangibleAssets" cat="balanceSheet" reports={reports} tooltip="Valued assets but not physical" />
                 <tr>
                   <td colSpan={reports.length + 1} className="py-2 bg-slate-50/30 dark:bg-hacker-card-hover/30">
                     <div className="h-[1px] bg-slate-100 dark:bg-hacker-border w-full"></div>
