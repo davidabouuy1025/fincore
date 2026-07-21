@@ -11,16 +11,19 @@ export interface IExtractionService {
     suggestedSector: string;
     extractedData: any;
   };
+  extractedDataToFinancials(extractedData: any): Record<string, Record<string, string | null>>;
 }
 
 export interface IStorageService {
   saveReport(report: any, year: string, sector: string): Promise<any>;
   getReportsByYearAndSector(year: string, sector: string): any[];
   getArchiveSummary(): any[];
+  findSavedMarkdownByStoredFileName(storedFileName: string): string;
 }
 
 export interface IAiService {
   generateInsights(reports: any[], sector: string, year: string): Promise<string>;
+  extractFinancialsWithGemini(markdown: string): Promise<any>;
 }
 
 export class ReportController {
@@ -56,6 +59,9 @@ export class ReportController {
           originalFileName: file.originalname,
           storedFileName: file.filename,
           docType,
+          markdown: {
+            pureMarkdown: text,
+          },
           ...analysis,
           rawTextLength: text.length,
         });
@@ -129,6 +135,39 @@ export class ReportController {
       const responseText = await this.aiService.generateInsights(reports, sector, year);
       return res.json({ text: responseText });
     } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  };
+
+  /**
+   * POST /api/ai-reanalyze
+   * Re-extracts financials from stored markdown using Gemini AI or fallback
+   */
+  reanalyze = async (req: Request, res: Response) => {
+    try {
+      const { storedFileName, markdown } = req.body;
+
+      let sourceMarkdown = typeof markdown === "string" ? markdown : "";
+      if (!sourceMarkdown.trim() && storedFileName) {
+        sourceMarkdown = this.storageService.findSavedMarkdownByStoredFileName(storedFileName);
+      }
+
+      if (!sourceMarkdown.trim()) {
+        return res.status(400).json({ error: "No markdown available for AI re-analysis" });
+      }
+
+      let extractedFinancials;
+      try {
+        extractedFinancials = await this.aiService.extractFinancialsWithGemini(sourceMarkdown);
+      } catch (aiErr) {
+        console.error("[WARN] Gemini re-analysis failed, using local markdown extraction:", aiErr);
+        const extracted = this.extractionService.processFinancials(sourceMarkdown, storedFileName || "document.pdf");
+        extractedFinancials = this.extractionService.extractedDataToFinancials(extracted.extractedData);
+      }
+
+      return res.json({ success: true, extractedFinancials });
+    } catch (err: any) {
+      console.error("[ERROR] AI re-analysis failure:", err);
       return res.status(500).json({ error: err.message });
     }
   };

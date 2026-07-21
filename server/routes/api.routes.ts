@@ -4,6 +4,8 @@ import path from "path";
 import fs from "fs";
 
 import { ReportController } from "../controllers/report.controller";
+import { NewsController } from "../controllers/news.controller";
+
 // Concrete Class Imports
 import { OcrService } from "../services/ocr.service";
 import { ExtractionService } from "../services/extraction.service";
@@ -28,7 +30,7 @@ const upload = multer({ storage, limits: { fileSize: 50 * 1024 * 1024 } });
 const ocrService = new OcrService();
 const extractionService = new ExtractionService();
 const storageService = new StorageService();
-const aiService = new AiService();
+const aiService = new AiService(extractionService);
 
 const reportController = new ReportController(
   ocrService,
@@ -37,13 +39,23 @@ const reportController = new ReportController(
   aiService
 );
 
+const newsController = new NewsController();
+
 const router = Router();
 
-// --- Routing Manifest Map ---
+// --- Report Routes ---
 router.post("/parse", upload.array("reports"), reportController.parseReports);
 router.post("/save", reportController.saveReports);
 router.get("/reports/:year/:sector", reportController.getReports);
 router.get("/archive", reportController.getArchive);
 router.post("/ai-insights", reportController.getAiInsights);
+router.post("/ai-reanalyze", reportController.reanalyze);
+
+// --- News Routes ---
+router.get("/news/state", newsController.getState);
+router.post("/news/refresh", newsController.refresh);
+router.post("/news/keywords", newsController.updateKeywords);
+router.post("/news/click", newsController.trackClick);
+router.post("/news/scrape-full", newsController.scrapeFull);
 
 export { router as apiRouter };

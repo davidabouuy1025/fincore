@@ -32,6 +32,7 @@ export class StorageService implements IStorageService {
    */
   public async saveReport(report: any, year: string, sector: string): Promise<any> {
     const { companyName, financials, storedFileName, originalFileName, docType } = report;
+    const pureMarkdown = report.markdown?.pureMarkdown || report.Markdown?.pureMarkdown || report.pureMarkdown || "";
 
     const reportData = {
       CompanyReport: {
@@ -46,16 +47,37 @@ export class StorageService implements IStorageService {
           ProcessedAt: new Date().toISOString(),
         },
         Financials: financials,
+        Markdown: {
+          pureMarkdown,
+        },
       },
     };
 
-    const sectorDir = path.join(this.dbRoot, year, sector);
+    const sectorDir = path.join(this.dbRoot, String(year), sector);
     if (!fs.existsSync(sectorDir)) {
       fs.mkdirSync(sectorDir, { recursive: true });
     }
 
-    const safeName = companyName.replace(/[^a-zA-Z0-9]/g, "_").slice(0, 60);
+    const safeName = (companyName || "UNKNOWN_COMPANY").replace(/[^a-zA-Z0-9]/g, "_").slice(0, 60);
     const destinationPath = path.join(sectorDir, `${safeName}.xml`);
+
+    if (storedFileName) {
+      const existingXmlFiles = fs.readdirSync(sectorDir).filter((f) => f.endsWith(".xml"));
+      for (const existingFile of existingXmlFiles) {
+        const existingPath = path.join(sectorDir, existingFile);
+        if (existingPath === destinationPath) continue;
+
+        try {
+          const existingContent = fs.readFileSync(existingPath, "utf-8");
+          const existingReport = this.parser.parse(existingContent).CompanyReport;
+          if (existingReport?.Metadata?.StoredFileName === storedFileName) {
+            fs.unlinkSync(existingPath);
+          }
+        } catch (err) {
+          console.error(`[WARN] Could not check existing report ${existingFile}:`, err);
+        }
+      }
+    }
 
     fs.writeFileSync(destinationPath, this.builder.build(reportData));
     console.log(`[SAVED] Structured XML updated for entity: ${companyName} -> ${sector}/${year}`);
@@ -106,5 +128,39 @@ export class StorageService implements IStorageService {
     });
 
     return archive.sort((a, b) => Number(b.year) - Number(a.year));
+  }
+
+  /**
+   * Searches the db for a report with a matching storedFileName to retrieve pureMarkdown.
+   */
+  public findSavedMarkdownByStoredFileName(storedFileName: string): string {
+    if (!storedFileName || !fs.existsSync(this.dbRoot)) return "";
+
+    const stack = [this.dbRoot];
+
+    while (stack.length > 0) {
+      const current = stack.pop()!;
+      for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+        const entryPath = path.join(current, entry.name);
+        if (entry.isDirectory()) {
+          if (entry.name !== "original_reports") stack.push(entryPath);
+          continue;
+        }
+
+        if (!entry.name.endsWith(".xml")) continue;
+
+        try {
+          const content = fs.readFileSync(entryPath, "utf-8");
+          const report = this.parser.parse(content).CompanyReport;
+          if (report?.Metadata?.StoredFileName === storedFileName) {
+            return report.Markdown?.pureMarkdown || "";
+          }
+        } catch (err) {
+          console.error(`[WARN] Failed to read markdown from ${entryPath}:`, err);
+        }
+      }
+    }
+
+    return "";
   }
 }

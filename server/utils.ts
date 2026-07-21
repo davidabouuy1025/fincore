@@ -1,38 +1,61 @@
 export function detectCompanyName(text: string, fileName: string): string {
-  // Try pattern matching from text
-  const patterns = [
-    /([A-Z0-9\s,&.\-\(\)]+)\s+(SDN\s+BHD|BHD|BERHAD|Sdn\s+Bhd|Sdn\.\s+Bhd\.|Bhd\.)/i,
-    /([A-Z0-9\s,&.\-\(\)]+)\s+(LIMITED|LTD|CORP|INC|HOLDINGS|GROUP)/i,
-  ];
+  // 1. Pre-clean the text: Split into lines, trim them, and filter out isolated page numbers/headers
+  const lines = text
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(line => line.length > 0 && !/^\d+$/.test(line)); // Removes "147"
 
-  for (const p of patterns) {
-    const match = text.match(p);
-    if (match && match[1]) {
-      const name = match[1].trim().toUpperCase();
-      const suffix = match[2].trim().toUpperCase();
-      if (name.length > 2 && name.length < 100 && !["FOR", "THE", "ANNUAL REPORT", "OF"].includes(name)) {
-        return `${name} ${suffix}`;
+  // 2. Look specifically for the line containing the company suffix
+  const suffixRegex = /\b(SDN\s*BHD|BHD|BERHAD|LIMITED|LTD|PLC)\b/i;
+  
+  for (const line of lines) {
+    if (suffixRegex.test(line)) {
+      // Clean up any trailing/leading punctuation on that specific line
+      let potentialName = line.replace(/^[.\-\s]+|[.\-\s]+$/g, "");
+      
+      // Validate length
+      if (potentialName.length > 2 && potentialName.length < 100) {
+        return potentialName.toUpperCase(); // Should return "GAMUDA BERHAD"
       }
     }
   }
 
-  // Fallback to cleaning the filename
-  let baseName = fileName.replace(/\.[^/.]+$/, ""); // strip extension
-  baseName = baseName.replace(/^\d+-/, ""); // strip timestamp prefix e.g. 171822...-
-  baseName = baseName.replace(/_/g, " ");
-  baseName = baseName.replace(/pasted-\d+/i, "PASTED DOCUMENT");
-  baseName = baseName.toUpperCase().trim();
+  // 3. Fallback to filename logic if no suffix line is found
+  let baseName = fileName.replace(/\.[^/.]+$/, "");
+  baseName = baseName.replace(/^\d+-/, "");
+  baseName = baseName.replace(/_/, " ");
   
-  return baseName || "UNKNOWN COMPANY";
+  if (/pasted-\d+/i.test(baseName)) {
+    return "PASTED DOCUMENT";
+  }
+
+  return baseName.toUpperCase().trim() || "UNKNOWN COMPANY";
+}
+
+export function cleanCompanyName(text: string): string {
+  // Regex captures the name in group 1, the suffix in group 2, and matches (but ignores) everything else after
+  const pattern = /^([\s\w,&.\-\(\)]+?)\s+(BERHAD|BHD|SDN\s+BHD|LIMITED|LTD)\b.*/i;
+  
+  const match = text.match(pattern);
+  
+  if (match) {
+    const entityName = match[1].trim();
+    const suffix = match[2].trim();
+    
+    // Combine just the clean name and the suffix
+    return `${entityName} ${suffix}`.toUpperCase();
+  }
+  
+  return text; // Return original if no suffix match found
 }
 
 export function detectSector(text: string, defaultSector = "TECHNOLOGY"): string {
   const content = text.toLowerCase();
 
   const sectorKeywords: Record<string, string[]> = {
-    TECHNOLOGY: ["software", "semiconductor", "technology", "hardware", "digital", "data center", "it solutions", "cybersecurity", "telecommunication"],
+    TECHNOLOGY: ["software", "semiconductor", "technology", "hardware", "digital","it solutions", "cybersecurity", "telecommunication"],
     PLANTATION: ["plantation", "palm oil", "oil palm", "agriculture", "rubber", "harvest", "crop"],
-    FINANCIAL_SERVICES: ["banking", "finance", "financial", "insurance", "investment", "takaful", "credit", "asset management"],
+    FINANCIAL_SERVICES: ["banking", "finance", "insurance", "investment", "takaful", "credit", "asset management"],
     CONSUMER_PRODUCTS: ["beverage", "food", "retail", "consumer", "merchandise", "household", "fmcg", "supermarket"],
     INDUSTRIAL_PRODUCTS: ["manufacturing", "chemical", "industrial", "steel", "cement", "engineering", "metal", "plastic"],
     REITS: ["reit", "real estate investment trust", "trust", "rental income", "shopping mall"],
