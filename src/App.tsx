@@ -13,7 +13,6 @@ import { ThemeToggle } from "./components/ThemeToggle";
 import SplashCursor from "./components/SplashCursor";
 import InteractiveGrid from "./components/InteractiveGrid";
 import { style } from "motion/react-client";
-import favicon from "../public/favicon.png";
 
 export default function App() {
   const [reports, setReports] = useState<CompanyReport[]>([]);
@@ -332,7 +331,7 @@ export default function App() {
         >
           <div className={`w-10 h-10 border flex items-center justify-center rounded-lg transition-all ${view === "info" ? "border-emerald-600 bg-emerald-50 text-emerald-800" : "border-emerald-600 bg-emerald-50 text-emerald-800 group-hover:border-hacker-green group-hover:text-hacker-green"}`}>
             <img
-              src={favicon}
+              src="/favicon.png"
               alt="Favicon"
               className="w-full h-full object-contain"
             />
