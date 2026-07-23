@@ -38,7 +38,7 @@ export class StorageService implements IStorageService {
    * Marshals report snapshots into standardized corporate flat-file XML models
    */
   public async saveReport(report: any, defaultYear: string, defaultSector: string): Promise<any> {
-    let { companyName, financials, storedFileName, originalFileName, docType, selectedPages } = report;
+    let { companyName, financials, storedFileName, originalFileName, docType, selectedPages, period, currency } = report;
     const reportYear = report.year || defaultYear;
     const reportSector = report.sector || defaultSector;
     const pureMarkdown = report.markdown?.pureMarkdown || report.Markdown?.pureMarkdown || report.pureMarkdown || "";
@@ -76,7 +76,10 @@ export class StorageService implements IStorageService {
     // Rename the physical uploaded PDFs to COMPANY_YEAR.pdf, COMPANY_YEAR_2.pdf, etc.
     const cleanCompany = companyName.toUpperCase().replace(/[^A-Z0-9]/g, "_").replace(/_+/g, "_").replace(/(^_|_$)/g, "");
     const companyBase = cleanCompany || "COMPANY";
-    const baseName = `${companyBase}_${reportYear}`;
+    let baseName = `${companyBase}_${reportYear}`;
+    if (period && period.toLowerCase() !== "annual") {
+      baseName = `${companyBase}_${reportYear}_${period.toUpperCase()}`;
+    }
 
     const updatedStoredFiles: string[] = [];
     const updatedOriginalFiles: string[] = [];
@@ -122,10 +125,11 @@ export class StorageService implements IStorageService {
         Metadata: {
           CompanyName: companyName,
           FinancialYear: reportYear,
+          Period: period || "annual",
           Sector: reportSector,
           OriginalFileName: originalFilesArray.length > 0 ? (originalFilesArray.length === 1 ? originalFilesArray[0] : originalFilesArray) : originalFileName,
           StoredFileName: storedFilesArray.length > 0 ? (storedFilesArray.length === 1 ? storedFilesArray[0] : storedFilesArray) : storedFileName,
-          Currency: "MYR '000",
+          Currency: currency || "MYR '000",
           DocType: docType,
           ProcessedAt: new Date().toISOString(),
           SelectedPages: selectedPages || "",
