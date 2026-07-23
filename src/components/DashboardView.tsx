@@ -284,22 +284,39 @@ export function DashboardView({
     }
   };
 
+  const [dashboardPeriodFilter, setDashboardPeriodFilter] = useState<"annual" | "quarterly">("annual");
+
+  const filteredReports = useMemo(() => {
+    return reports.filter((r) => {
+      const p = r.Metadata?.Period?.toLowerCase() || "annual";
+      const isQuarter = ["q1", "q2", "q3", "q4"].includes(p);
+      return dashboardPeriodFilter === "annual" ? !isQuarter : isQuarter;
+    });
+  }, [reports, dashboardPeriodFilter]);
+
   // 1. Group & Sort Reports
   const companyGroups = useMemo(() => {
     const groups: Record<string, CompanyReport[]> = {};
-    reports.forEach((r) => {
+    filteredReports.forEach((r) => {
       const name = r.Metadata?.CompanyName || "UNKNOWN CORP";
       if (!groups[name]) groups[name] = [];
       groups[name].push(r);
     });
     // Sort chronologically descending
     Object.keys(groups).forEach((name) => {
-      groups[name].sort(
-        (a, b) => parseInt(b.Metadata?.FinancialYear || "0") - parseInt(a.Metadata?.FinancialYear || "0")
-      );
+      groups[name].sort((a, b) => {
+        const yearA = parseInt(a.Metadata?.FinancialYear || "0");
+        const yearB = parseInt(b.Metadata?.FinancialYear || "0");
+        if (yearA !== yearB) return yearB - yearA;
+
+        const qA = a.Metadata?.Period?.toLowerCase() || "annual";
+        const qB = b.Metadata?.Period?.toLowerCase() || "annual";
+        const qOrder: Record<string, number> = { annual: 0, q1: 1, q2: 2, q3: 3, q4: 4 };
+        return (qOrder[qB] || 0) - (qOrder[qA] || 0);
+      });
     });
     return groups;
-  }, [reports]);
+  }, [filteredReports]);
 
   const uniqueCompanies = useMemo(() => Object.keys(companyGroups), [companyGroups]);
 
@@ -330,8 +347,16 @@ export function DashboardView({
     const history = [...activeCompanyHistory];
     if (history.length === 0) return [];
 
-    // Ensure we sort chronologically descending (e.g., 2025, 2024, 2023, ...)
-    history.sort((a, b) => parseInt(b.Metadata?.FinancialYear || "0") - parseInt(a.Metadata?.FinancialYear || "0"));
+    history.sort((a, b) => {
+      const yearA = parseInt(a.Metadata?.FinancialYear || "0");
+      const yearB = parseInt(b.Metadata?.FinancialYear || "0");
+      if (yearA !== yearB) return yearB - yearA;
+
+      const qA = a.Metadata?.Period?.toLowerCase() || "annual";
+      const qB = b.Metadata?.Period?.toLowerCase() || "annual";
+      const qOrder: Record<string, number> = { annual: 0, q1: 1, q2: 2, q3: 3, q4: 4 };
+      return (qOrder[qB] || 0) - (qOrder[qA] || 0);
+    });
 
     return history;
   }, [activeCompanyHistory]);
@@ -559,8 +584,12 @@ export function DashboardView({
     return [...fullCompanyHistory].reverse().map((r) => {
       const m1 = METRIC_DICT[primaryMetric];
       const m2 = overlayMetric ? METRIC_DICT[overlayMetric] : null;
+      const p = r.Metadata?.Period?.toLowerCase() || "annual";
+      const displayLabel = p !== "annual" 
+        ? `${r.Metadata?.FinancialYear} ${p.toUpperCase()}`
+        : `FY${r.Metadata?.FinancialYear}`;
       return {
-        year: `FY${r.Metadata?.FinancialYear}`,
+        year: displayLabel,
         [m1.label]: getReportVal(r, m1.cat, m1.field),
         ...(m2 ? { [m2.label]: getReportVal(r, m2.cat, m2.field) } : {}),
       };
@@ -840,6 +869,32 @@ ${growth >= 0
 
         {/* Global Company Selector in Header */}
         <div className="flex flex-wrap items-center gap-3">
+          {/* Annual vs Quarterly Period Filter */}
+          <div className="flex gap-1 p-1 bg-white dark:bg-hacker-card-bg rounded-xl border border-hacker-border/40 shadow-3xs mr-2">
+            <button
+              onClick={() => setDashboardPeriodFilter("annual")}
+              className={cn(
+                "px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer",
+                dashboardPeriodFilter === "annual"
+                  ? "bg-teal-800 text-white dark:text-teal-400"
+                  : "text-slate-400 dark:text-zinc-500 hover:text-slate-650 dark:hover:text-zinc-300"
+              )}
+            >
+              Annual
+            </button>
+            <button
+              onClick={() => setDashboardPeriodFilter("quarterly")}
+              className={cn(
+                "px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer",
+                dashboardPeriodFilter === "quarterly"
+                  ? "bg-teal-800 text-white dark:text-teal-400"
+                  : "text-slate-400 dark:text-zinc-500 hover:text-slate-655 dark:hover:text-zinc-300"
+              )}
+            >
+              Quarterly
+            </button>
+          </div>
+
           <span className="text-[9px] font-black text-hacker-text-muted uppercase tracking-widest">Target Entity:</span>
           <select
             value={activeCompany}
@@ -1230,16 +1285,22 @@ ${growth >= 0
               <thead>
                 <tr className="bg-slate-50 dark:bg-hacker-universal-bckgrd border-b border-hacker-border/40">
                   <th className="px-6 py-4 text-[9px] font-black tracking-widest text-hacker-text-muted uppercase w-60">
-                    Accounts Statement Items (RM Millions)
+                    Accounts Statement Items
                   </th>
-                  {fullCompanyHistory.map((rep, idx) => (
-                    <th
-                      key={idx}
-                      className="px-6 py-4 text-[10px] font-bold border-l border-hacker-border/10 text-center text-hacker-text-main uppercase tracking-wider"
-                    >
-                      FY {rep.Metadata?.FinancialYear}
-                    </th>
-                  ))}
+                  {fullCompanyHistory.map((rep, idx) => {
+                    const currencyStr = rep.Metadata?.Currency || "MYR '000";
+                    const isThousands = currencyStr.includes("'000") || currencyStr.includes("Thousands");
+                    const currencyName = currencyStr.split(" ")[0] || "MYR";
+                    return (
+                      <th
+                        key={idx}
+                        className="px-6 py-4 text-[10px] font-bold border-l border-hacker-border/10 text-center text-hacker-text-main uppercase tracking-wider"
+                      >
+                        <div>FY {rep.Metadata?.FinancialYear}{rep.Metadata?.Period && rep.Metadata.Period !== "annual" && ` (${rep.Metadata.Period.toUpperCase()})`}</div>
+                        <div className="text-[8px] opacity-60 font-normal mt-0.5">{currencyName} {isThousands ? "Millions" : "Units"}</div>
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody className="text-xs divide-y divide-hacker-border/10 text-hacker-text-submain font-mono">
@@ -1338,7 +1399,10 @@ ${growth >= 0
                               displayVal = `${val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}x`;
                             }
                           } else {
-                            displayVal = (val / 1000).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+                            const currencyStr = rep.Metadata?.Currency || "MYR '000";
+                            const isThousands = currencyStr.includes("'000") || currencyStr.includes("Thousands");
+                            const divisor = isThousands ? 1000 : 1000000;
+                            displayVal = (val / divisor).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
                           }
 
                           return (
