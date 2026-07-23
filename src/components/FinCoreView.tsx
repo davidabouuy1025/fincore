@@ -66,8 +66,8 @@ export function FinCoreView({
   archive,
   loadReports
 }: FinCoreViewProps) {
-  const [activeReportIndex, setActiveReportIndex] = useState<number>(0);
-
+  const [selectedCompanyName, setSelectedCompanyName] = useState<string>("");
+  const [selectedVersionIndex, setSelectedVersionIndex] = useState<number>(0);
   const [selectedSector, setSelectedSector] = useState<string | null>(null);
 
   // Group reports by company to access peer sets
@@ -80,6 +80,43 @@ export function FinCoreView({
     });
     return groups;
   }, [reports]);
+
+  const uniqueCompanies = useMemo(() => {
+    return Array.from(new Set(reports.map((r) => r.Metadata?.CompanyName || "UNKNOWN CORP").filter(Boolean)));
+  }, [reports]);
+
+  const activeCompany = useMemo(() => {
+    if (selectedCompanyName && uniqueCompanies.includes(selectedCompanyName)) {
+      return selectedCompanyName;
+    }
+    return uniqueCompanies[0] || "";
+  }, [selectedCompanyName, uniqueCompanies]);
+
+  // Sync selected company if list updates
+  useEffect(() => {
+    if (uniqueCompanies.length > 0 && !uniqueCompanies.includes(selectedCompanyName)) {
+      setSelectedCompanyName(uniqueCompanies[0]);
+    }
+  }, [uniqueCompanies, selectedCompanyName]);
+
+  const activeCompanyReports = useMemo(() => {
+    const list = reports.filter((r) => (r.Metadata?.CompanyName || "UNKNOWN CORP") === activeCompany);
+    return [...list].sort((a, b) => {
+      const yearA = parseInt(a.Metadata?.FinancialYear || "0");
+      const yearB = parseInt(b.Metadata?.FinancialYear || "0");
+      if (yearA !== yearB) return yearB - yearA;
+
+      const qA = a.Metadata?.Period?.toLowerCase() || "annual";
+      const qB = b.Metadata?.Period?.toLowerCase() || "annual";
+      const qOrder: Record<string, number> = { annual: 0, q1: 1, q2: 2, q3: 3, q4: 4 };
+      return (qOrder[qB] || 0) - (qOrder[qA] || 0);
+    });
+  }, [reports, activeCompany]);
+
+  // Reset version selection when company changes
+  useEffect(() => {
+    setSelectedVersionIndex(0);
+  }, [activeCompany]);
 
   // Determine all sectors available in the DB
   const availableSectors = Array.from(new Set([
@@ -106,7 +143,7 @@ export function FinCoreView({
     return Array.from(latestMap.values());
   }, [reports]);
 
-  const selectedReport = latestReportsPerCompany[activeReportIndex] || latestReportsPerCompany[0];
+  const selectedReport = activeCompanyReports[selectedVersionIndex] || activeCompanyReports[0] || reports[0];
 
   const sectorsList = [
     "TECHNOLOGY",
@@ -290,16 +327,15 @@ export function FinCoreView({
   const EVA = (roicSpread * investedCapital) / 100;
   const valueCreationStatus = roicSpread > 0 ? "Creating Value" : "Destroying Value";
 
-  // Mock historical trends for sparklines
-  const getHistoricalSpreadTrend = () => {
-    const spread1 = roicSpread;
-    const spread2 = roicSpread - 1.2;
-    const spread3 = roicSpread + 0.8;
-    const spread4 = roicSpread - 0.4;
-    const spread5 = roicSpread - 2.0;
-    return [spread5, spread4, spread3, spread2, spread1];
-  };
-  const historicalSpread = getHistoricalSpreadTrend();
+  // Dynamic historical ROIC spread trajectory
+  const historicalSpread = useMemo(() => {
+    const sortedAsc = [...activeCompanyReports].reverse().slice(-5);
+    if (sortedAsc.length === 0) return [roicSpread];
+    return sortedAsc.map((rep) => {
+      const repCore8 = calculateCore8Metrics(rep);
+      return repCore8.roic - WACC;
+    });
+  }, [activeCompanyReports, roicSpread]);
 
   // Peer Comparisons
   const peerListWithScores = latestReportsPerCompany.map((rep) => {
@@ -419,25 +455,46 @@ export function FinCoreView({
             <span className="text-[10px] font-extrabold tracking-wider uppercase">FinCore™ Intelligence Portal</span>
           </div>
           <h1 className="text-xl font-black text-hacker-text-main tracking-tight">
-            Institutional Analysis Terminal (FY{selectedReport?.Metadata?.FinancialYear})
+            Institutional Analysis Terminal ({selectedReport?.Metadata?.FinancialYear}{selectedReport?.Metadata?.Period && selectedReport.Metadata.Period !== "annual" ? ` ${selectedReport.Metadata.Period.toUpperCase()}` : " Annual"})
           </h1>
         </div>
 
-        <div className="flex items-center gap-1.5 overflow-x-auto bg-slate-50 dark:bg-hacker-card-bg p-1 rounded-lg border border-hacker-border">
-          {latestReportsPerCompany.map((r, i) => (
-            <button
-              key={i}
-              onClick={() => setActiveReportIndex(i)}
-              className={cn(
-                "px-3.5 py-1.5 rounded text-xs font-black transition-all cursor-pointer whitespace-nowrap",
-                activeReportIndex === i
-                  ? "bg-teal-800 text-white shadow-2xs"
-                  : "text-hacker-text-muted hover:text-hacker-text-main"
-              )}
-            >
-              {r.Metadata.CompanyName}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-1.5 overflow-x-auto bg-slate-50 dark:bg-hacker-card-bg p-1 rounded-lg border border-hacker-border">
+            {uniqueCompanies.map((cName, i) => (
+              <button
+                key={i}
+                onClick={() => setSelectedCompanyName(cName)}
+                className={cn(
+                  "px-3.5 py-1.5 rounded text-xs font-black transition-all cursor-pointer whitespace-nowrap",
+                  activeCompany === cName
+                    ? "bg-teal-800 text-white shadow-2xs"
+                    : "text-hacker-text-muted hover:text-hacker-text-main"
+                )}
+              >
+                {cName}
+              </button>
+            ))}
+          </div>
+
+          <span className="text-[10px] font-black text-hacker-text-muted uppercase tracking-widest ml-2">Version:</span>
+          <select
+            value={selectedVersionIndex}
+            onChange={(e) => setSelectedVersionIndex(parseInt(e.target.value, 10))}
+            className="bg-white dark:bg-hacker-card-bg border border-hacker-border/40 rounded-xl px-4 py-2 text-xs font-black text-hacker-text-main focus:outline-none focus:border-hacker-green cursor-pointer shadow-3xs"
+          >
+            {activeCompanyReports.map((r, idx) => {
+              const p = r.Metadata?.Period?.toLowerCase() || "annual";
+              const label = p !== "annual" 
+                ? `${r.Metadata?.FinancialYear} ${p.toUpperCase()}`
+                : `${r.Metadata?.FinancialYear} Annual`;
+              return (
+                <option key={idx} value={idx}>
+                  {label}
+                </option>
+              );
+            })}
+          </select>
         </div>
       </div>
 
@@ -450,7 +507,7 @@ export function FinCoreView({
               Company Health Snapshot
             </h2>
             <span className="text-xs font-extrabold text-hacker-text-muted">
-              FY{selectedReport?.Metadata?.FinancialYear}
+              {selectedReport?.Metadata?.FinancialYear}{selectedReport?.Metadata?.Period && selectedReport.Metadata.Period !== "annual" ? ` ${selectedReport.Metadata.Period.toUpperCase()}` : " Annual"}
             </span>
           </div>
 
@@ -563,7 +620,7 @@ export function FinCoreView({
                 Spread Trajectory:
               </span>
               <span className="text-[10px] font-mono text-hacker-text-muted font-bold">
-                {historicalSpread.map((s) => s.toFixed(0)).join(" → ")}
+                {historicalSpread.map((s) => `${s.toFixed(1)}%`).join(" → ")}
               </span>
             </div>
           </div>
