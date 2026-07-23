@@ -78,6 +78,8 @@ interface Attachment {
   id: string;
   companyName: string;
   year: string;
+  period?: string;
+  currency?: string;
   files: File[];
   existingStoredFiles?: { name: string; size: number; storedFileName: string }[];
   selectedPages: string; // "1,2,3,10-20,45-60"
@@ -146,6 +148,10 @@ export function UploadView({
   const [isIngestingJson, setIsIngestingJson] = useState<boolean>(false);
   const [ingestStatus, setIngestStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [mdObjectUrl, setMdObjectUrl] = useState<string | null>(null);
+  const [mdUploadedStoredFileName, setMdUploadedStoredFileName] = useState<string>("");
+  const [selectedMdYear, setSelectedMdYear] = useState<string>("2025");
+  const [selectedMdPeriod, setSelectedMdPeriod] = useState<string>("annual");
+  const [selectedMdCurrency, setSelectedMdCurrency] = useState<string>("MYR");
 
   const getPromptTemplate = () => {
     return `As professional auditor, convert markdown into JSON. Use the formula to calculate if any value is missing but derivable, else leave as 0. STRICTLY double check all the values ensuring that all the values are correct for the financial year.
@@ -155,7 +161,9 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
 
 {
   "companyName": "Company Name (e.g. Nestle Malaysia Berhad)",
-  "year": 2025,
+  "year": ${selectedMdYear},
+  "period": "${selectedMdPeriod}",
+  "currency": "${selectedMdCurrency}",
   "sector": "TECHNOLOGY/PLANTATION/FINANCIAL_SERVICES/CONSUMER_PRODUCTS/INDUSTRIAL_PRODUCTS/REITS/ENERGY/HEALTHCARE/CONSTRUCTION",
   "originalFileName": "COMPANY_YEAR",
   "storedFileName": "COMPANY_YEAR",
@@ -298,6 +306,10 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
       if (data.success && data.parsed && data.parsed.length > 0) {
         const doc = data.parsed[0];
         setConvertedMarkdown(doc.markdown?.pureMarkdown || doc.rawText || "No markdown content could be extracted.");
+        setMdUploadedStoredFileName(doc.storedFileName || "");
+        if (doc.suggestedYear) setSelectedMdYear(doc.suggestedYear);
+        if (doc.suggestedPeriod) setSelectedMdPeriod(doc.suggestedPeriod);
+        if (doc.suggestedCurrency) setSelectedMdCurrency(doc.suggestedCurrency);
       } else {
         throw new Error(data.error || "Failed to parse file.");
       }
@@ -326,7 +338,7 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
       if (!parsedJson.companyName || !String(parsedJson.companyName).trim()) {
         throw new Error("Missing 'companyName' in JSON.");
       }
-      const rawYear = parsedJson.year !== undefined && parsedJson.year !== null ? String(parsedJson.year) : "";
+      const rawYear = parsedJson.year !== undefined && parsedJson.year !== null ? String(parsedJson.year) : selectedMdYear;
       if (!rawYear.trim()) {
         throw new Error("Missing 'year' in JSON.");
       }
@@ -365,6 +377,8 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
 
       const cleanYear = rawYear.trim();
       const cleanSector = String(parsedJson.sector).trim();
+      const cleanPeriod = String(selectedMdPeriod || parsedJson.period || "annual").trim();
+      const cleanCurrency = String(selectedMdCurrency || parsedJson.currency || "MYR").trim();
 
       // Prepare payload to match standard save format
       const payload = {
@@ -372,10 +386,12 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
           {
             companyName: parsedJson.companyName,
             financials: formattedFinancials,
-            storedFileName: parsedJson.storedFileName || mdFile?.name || "external_paste.json",
+            storedFileName: mdUploadedStoredFileName || parsedJson.storedFileName || mdFile?.name || "external_paste.json",
             originalFileName: parsedJson.originalFileName || mdFile?.name || "external_paste.json",
             docType: parsedJson.docType || "DIGITAL_PDF",
             year: cleanYear,
+            period: cleanPeriod,
+            currency: cleanCurrency,
             sector: cleanSector,
             markdown: {
               pureMarkdown: mdText
@@ -428,6 +444,8 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
       id: "att-1",
       companyName: "",
       year: "2025",
+      period: "annual",
+      currency: "MYR",
       files: [],
       selectedPages: "1-15,45-60",
       isExpanded: true,
@@ -568,6 +586,8 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
                       companyName: rep.Metadata?.CompanyName || rep.companyName,
                       year: rep.Metadata?.FinancialYear || entry.year,
                       sector: rep.Metadata?.Sector || sec,
+                      period: rep.Metadata?.Period || rep.period || "annual",
+                      currency: rep.Metadata?.Currency || rep.currency || "MYR",
                     }));
                   })
                   .catch(() => [])
@@ -632,6 +652,8 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
       companyName: rep.companyName,
       year: rep.year,
       sector: rep.sector,
+      period: rep.period || rep.Metadata?.Period || "annual",
+      currency: rep.currency || rep.Metadata?.Currency || "MYR",
       isExpanded: true,
     };
   };
@@ -663,6 +685,8 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
           id: `att-${Date.now()}-${updated.length + 1}`,
           companyName: "",
           year: "2025",
+          period: "annual",
+          currency: "MYR",
           files: [],
           selectedPages: "1-15,45-60",
           isExpanded: true,
@@ -681,6 +705,8 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
           id: "att-1",
           companyName: "",
           year: "2025",
+          period: "annual",
+          currency: "MYR",
           files: [],
           selectedPages: "1-15,45-60",
           isExpanded: true,
@@ -736,6 +762,8 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
               id: `att-${Date.now()}-${updated.length + 1}`,
               companyName: "",
               year: "2025",
+              period: "annual",
+              currency: "MYR",
               files: [],
               selectedPages: "1-15,45-60",
               isExpanded: true,
@@ -828,16 +856,25 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
         att.files.forEach((f) => formData.append("reports", f));
         formData.append("useAi", useAi ? "true" : "false");
         formData.append("selectedPages", att.selectedPages || "");
+        formData.append("year", att.year);
+        formData.append("period", att.period || "annual");
+        formData.append("currency", att.currency || "MYR");
 
         const res = await fetch("/api/parse", { method: "POST", body: formData });
         const data = await res.json();
 
         if (data.success && data.parsed && data.parsed.length > 0) {
           data.parsed.forEach((doc: any, i: number) => {
+            const isUserCustomYear = att.year !== "2025";
+            const isUserCustomPeriod = att.period !== "annual";
+            const isUserCustomCurrency = att.currency !== "MYR";
+
             parsedResults.push({
               ...doc,
-              companyName: att.companyName,
-              year: att.year,
+              companyName: att.companyName.trim() ? att.companyName : (doc.suggestedCompanyName || doc.companyName || ""),
+              year: isUserCustomYear ? att.year : (doc.suggestedYear || doc.year || att.year),
+              period: isUserCustomPeriod ? att.period : (doc.suggestedPeriod || doc.period || att.period),
+              currency: isUserCustomCurrency ? att.currency : (doc.suggestedCurrency || doc.currency || att.currency),
               sector: reviewSector,
               isExpanded: i === 0,
               selectedPages: att.selectedPages,
@@ -856,6 +893,8 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
             rawTextLength: 1000,
             companyName: att.companyName,
             year: att.year,
+            period: att.period || "annual",
+            currency: att.currency || "MYR",
             sector: reviewSector,
             isExpanded: true,
             selectedPages: att.selectedPages,
@@ -973,6 +1012,8 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
         originalFileName: doc.originalFileName,
         docType: doc.docType,
         year: doc.year || activeReviewYear,
+        period: doc.period || "annual",
+        currency: doc.currency || "MYR",
         sector: doc.sector || reviewSector,
         markdown: doc.markdown,
         selectedPages: doc.selectedPages || "",
@@ -1000,6 +1041,8 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
             id: "att-1",
             companyName: "",
             year: "2025",
+            period: "annual",
+            currency: "MYR",
             files: [],
             selectedPages: "1-15,45-60",
             isExpanded: true,
@@ -1049,7 +1092,7 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
     );
   };
 
-  const updateReviewDocMetadata = (docId: string, field: "companyName" | "year" | "sector", value: string) => {
+  const updateReviewDocMetadata = (docId: string, field: "companyName" | "year" | "sector" | "period" | "currency", value: string) => {
     setReviewDocs((prev) =>
       prev.map((doc) => {
         if (doc.fileId !== docId) return doc;
@@ -1068,7 +1111,7 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
   );
 
   return (
-    <div className="space-y-8 p-6 lg:p-10 font-sans bg-hacker-bg text-slate-800 dark:text-zinc-100 min-h-screen">
+    <div className="space-y-8 p-8 lg:p-12 font-sans bg-hacker-bg text-slate-800 dark:text-zinc-100 min-h-screen">
       {/* Title Header Section */}
       <header className="border-b border-slate-200 dark:border-hacker-border/30 pb-6 flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
@@ -1229,7 +1272,7 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
                             className="border-t border-slate-200 dark:border-zinc-900 p-5 space-y-4"
                           >
                             {/* Parameters */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                               <div>
                                 <label className="block text-[9px] uppercase tracking-[0.25em] text-slate-400 dark:text-zinc-500 mb-2 font-black">
                                   Company Name <span className="text-red-500">*</span>
@@ -1256,6 +1299,38 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
                                   {["2025", "2024", "2023", "2022", "2021"].map((y) => (
                                     <option key={y} value={y}>
                                       FY {y}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div>
+                                <label className="block text-[9px] uppercase tracking-[0.25em] text-slate-400 dark:text-zinc-500 mb-2 font-black">
+                                  Reporting Period <span className="text-red-500">*</span>
+                                </label>
+                                <select
+                                  value={att.period || "annual"}
+                                  onChange={(e) => handleAttachmentChange(att.id, "period", e.target.value)}
+                                  className="w-full bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-850 px-4 py-2.5 text-xs text-slate-800 dark:text-white rounded-lg focus:outline-none focus:border-emerald-500 transition-all shadow-3xs cursor-pointer font-bold"
+                                >
+                                  <option value="annual">Annual</option>
+                                  <option value="q1">Q1</option>
+                                  <option value="q2">Q2</option>
+                                  <option value="q3">Q3</option>
+                                  <option value="q4">Q4</option>
+                                </select>
+                              </div>
+                              <div>
+                                <label className="block text-[9px] uppercase tracking-[0.25em] text-slate-400 dark:text-zinc-500 mb-2 font-black">
+                                  Currency <span className="text-red-500">*</span>
+                                </label>
+                                <select
+                                  value={att.currency || "MYR"}
+                                  onChange={(e) => handleAttachmentChange(att.id, "currency", e.target.value)}
+                                  className="w-full bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-850 px-4 py-2.5 text-xs text-slate-800 dark:text-white rounded-lg focus:outline-none focus:border-emerald-500 transition-all shadow-3xs cursor-pointer font-bold"
+                                >
+                                  {["MYR", "USD", "CNY", "HKD", "JPY", "EUR"].map((cur) => (
+                                    <option key={cur} value={cur}>
+                                      {cur}
                                     </option>
                                   ))}
                                 </select>
@@ -1508,6 +1583,60 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
                         <p className="text-[10px] text-slate-400">
                           Supports PDF, PNG, JPG, WEBP
                         </p>
+                      </div>
+                    </div>
+
+                    {/* Metadata Parameters row */}
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-[8px] uppercase tracking-widest font-black text-slate-400 mb-1.5">
+                          Financial Year
+                        </label>
+                        <select
+                          value={selectedMdYear}
+                          onChange={(e) => setSelectedMdYear(e.target.value)}
+                          className="w-full bg-slate-100 dark:bg-black border border-slate-200 dark:border-zinc-800 px-3 py-2 text-xs font-bold text-slate-800 dark:text-white rounded-lg focus:outline-none focus:border-emerald-500 cursor-pointer"
+                        >
+                          {["2026", "2025", "2024", "2023", "2022", "2021"].map((y) => (
+                            <option key={y} value={y}>
+                              FY {y}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[8px] uppercase tracking-widest font-black text-slate-400 mb-1.5">
+                          Reporting Period
+                        </label>
+                        <select
+                          value={selectedMdPeriod}
+                          onChange={(e) => setSelectedMdPeriod(e.target.value)}
+                          className="w-full bg-slate-100 dark:bg-black border border-slate-200 dark:border-zinc-800 px-3 py-2 text-xs font-bold text-slate-800 dark:text-white rounded-lg focus:outline-none focus:border-emerald-500 cursor-pointer"
+                        >
+                          <option value="annual">Annual</option>
+                          <option value="q1">Q1</option>
+                          <option value="q2">Q2</option>
+                          <option value="q3">Q3</option>
+                          <option value="q4">Q4</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[8px] uppercase tracking-widest font-black text-slate-400 mb-1.5">
+                          Currency
+                        </label>
+                        <select
+                          value={selectedMdCurrency}
+                          onChange={(e) => setSelectedMdCurrency(e.target.value)}
+                          className="w-full bg-slate-100 dark:bg-black border border-slate-200 dark:border-zinc-800 px-3 py-2 text-xs font-bold text-slate-800 dark:text-white rounded-lg focus:outline-none focus:border-emerald-500 cursor-pointer"
+                        >
+                          {["MYR", "USD", "CNY", "HKD", "JPY", "EUR"].map((cur) => (
+                            <option key={cur} value={cur}>
+                              {cur}
+                            </option>
+                          ))}
+                        </select>
                       </div>
                     </div>
 
@@ -1838,7 +1967,9 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
                               {company}
                             </h4>
                             <div className="flex items-center gap-2 mt-1.5 text-[9px] font-black uppercase tracking-wider text-slate-400 dark:text-zinc-400">
-                              <span className="text-slate-500 dark:text-zinc-300">FY {year}</span>
+                              <span className="text-slate-500 dark:text-zinc-300">
+                                {year} {rep.period && rep.period.toLowerCase() !== "annual" ? rep.period.toUpperCase() : "Annual"}
+                              </span>
                               <span>•</span>
                               <span className="truncate">{sector?.replace(/_/g, " ")}</span>
                             </div>
@@ -1984,8 +2115,18 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
 
                       {/* Sector Selector */}
                       <div>
-                        <label className="block text-[8px] uppercase tracking-widest font-black text-slate-400 mb-1.5">
-                          Corporate Sector
+                        <label className="block text-[8px] uppercase tracking-widest font-black text-slate-400 mb-1.5 flex items-center justify-between">
+                          <span>Corporate Sector</span>
+                          {activeReviewDoc?.suggestedSector && activeReviewDoc.suggestedSector !== (activeReviewDoc?.sector || reviewSector) && (
+                            <button
+                              type="button"
+                              onClick={() => updateReviewDocMetadata(activeReviewDoc.fileId, "sector", activeReviewDoc.suggestedSector!)}
+                              className="text-[7px] text-amber-500 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded hover:bg-amber-500/20 cursor-pointer font-bold uppercase tracking-wider transition-all"
+                              title="Apply Recommended Sector"
+                            >
+                              use {activeReviewDoc.suggestedSector.replace(/_/g, " ")}
+                            </button>
+                          )}
                         </label>
                         <select
                           value={activeReviewDoc?.sector || reviewSector}
@@ -1995,6 +2136,64 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
                           {BURSA_SECTORS.map((s) => (
                             <option key={s} value={s}>
                               {s.replace(/_/g, " ")}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      {/* Reporting Period Selector */}
+                      <div>
+                        <label className="block text-[8px] uppercase tracking-widest font-black text-slate-400 mb-1.5 flex items-center justify-between">
+                          <span>Reporting Period</span>
+                          {activeReviewDoc?.suggestedPeriod && activeReviewDoc.suggestedPeriod !== (activeReviewDoc?.period || "annual") && (
+                            <button
+                              type="button"
+                              onClick={() => updateReviewDocMetadata(activeReviewDoc.fileId, "period", activeReviewDoc.suggestedPeriod!)}
+                              className="text-[7px] text-amber-500 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded hover:bg-amber-500/20 cursor-pointer font-bold uppercase tracking-wider transition-all"
+                              title="Apply Recommended Period"
+                            >
+                              use {activeReviewDoc.suggestedPeriod.toUpperCase()}
+                            </button>
+                          )}
+                        </label>
+                        <select
+                          value={activeReviewDoc?.period || "annual"}
+                          onChange={(e) => updateReviewDocMetadata(activeReviewDoc.fileId, "period", e.target.value)}
+                          className="w-full bg-slate-100 dark:bg-black border border-slate-200 dark:border-zinc-800 px-3 py-2 text-xs font-bold text-slate-800 dark:text-white rounded-lg focus:outline-none focus:border-emerald-500"
+                        >
+                          <option value="annual">Annual</option>
+                          <option value="q1">Q1</option>
+                          <option value="q2">Q2</option>
+                          <option value="q3">Q3</option>
+                          <option value="q4">Q4</option>
+                        </select>
+                      </div>
+
+                      {/* Currency Selector */}
+                      <div>
+                        <label className="block text-[8px] uppercase tracking-widest font-black text-slate-400 mb-1.5 flex items-center justify-between">
+                          <span>Currency</span>
+                          {activeReviewDoc?.suggestedCurrency && activeReviewDoc.suggestedCurrency !== (activeReviewDoc?.currency || "MYR") && (
+                            <button
+                              type="button"
+                              onClick={() => updateReviewDocMetadata(activeReviewDoc.fileId, "currency", activeReviewDoc.suggestedCurrency!)}
+                              className="text-[7px] text-amber-500 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded hover:bg-amber-500/20 cursor-pointer font-bold uppercase tracking-wider transition-all"
+                              title="Apply Recommended Currency"
+                            >
+                              use {activeReviewDoc.suggestedCurrency}
+                            </button>
+                          )}
+                        </label>
+                        <select
+                          value={activeReviewDoc?.currency || "MYR"}
+                          onChange={(e) => updateReviewDocMetadata(activeReviewDoc.fileId, "currency", e.target.value)}
+                          className="w-full bg-slate-100 dark:bg-black border border-slate-200 dark:border-zinc-800 px-3 py-2 text-xs font-bold text-slate-800 dark:text-white rounded-lg focus:outline-none focus:border-emerald-500"
+                        >
+                          {["MYR", "USD", "CNY", "HKD", "JPY", "EUR"].map((cur) => (
+                            <option key={cur} value={cur}>
+                              {cur}
                             </option>
                           ))}
                         </select>
