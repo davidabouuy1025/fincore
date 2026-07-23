@@ -82,8 +82,12 @@ export function NewsView() {
     try {
       const res = await fetch("/api/news/state");
       if (res.ok) {
-        const data: NewsState = await res.json();
-        setNewsState(data);
+        const data: any = await res.json();
+        setNewsState({
+          keywords: data.keywords || [],
+          articles: data.articles || [],
+          clicks: data.clicks || [],
+        });
         setTempKeywords(data.keywords || []);
       }
     } catch (err) {
@@ -222,7 +226,7 @@ export function NewsView() {
 
     // Recommended boosts based on clicks
     const clickTitleWords = new Set<string>(
-      newsState.clicks.flatMap((c: string) => String(c).toLowerCase().split(/\s+/)).filter((w: string) => w.length > 3)
+      (newsState.clicks || []).flatMap((c: string) => String(c).toLowerCase().split(/\s+/)).filter((w: string) => w.length > 3)
     );
     let hasClickMatch = false;
     for (const word of Array.from(clickTitleWords)) {
@@ -260,7 +264,7 @@ export function NewsView() {
     if (activeTab === "recommended") {
       // Score and sort
       const keywordSet = new Set<string>(newsState.keywords.map(k => String(k).toLowerCase()));
-      const clickWords = new Set<string>(newsState.clicks.flatMap((c: string) => String(c).toLowerCase().split(/\s+/)).filter((w: string) => w.length > 3));
+      const clickWords = new Set<string>((newsState.clicks || []).flatMap((c: string) => String(c).toLowerCase().split(/\s+/)).filter((w: string) => w.length > 3));
 
       const scored = result.map(art => {
         let score = 0;
