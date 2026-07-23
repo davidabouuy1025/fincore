@@ -55,12 +55,199 @@ interface DashboardViewProps {
   loadReports?: (y: string, s: string, overrideView?: "upload" | "dashboard" | "archive" | "news" | "fincore" | "info") => Promise<void>;
 }
 
-// Helper to extract nested report values safely
-function getReportVal(r: CompanyReport, cat: string, field: string): number {
+// Helper to extract nested report values safely with formula fallbacks and history context
+function getReportVal(r: CompanyReport, cat: string, field: string, history?: CompanyReport[]): number {
   if (!r || !r.Financials) return 0;
+
+  // 1. Resolve key mapping mismatches
+  let fieldKey = field;
+  if (cat === "ratios") {
+    if (field === "netMargin") fieldKey = "netProfitMargin";
+  }
+
+  // Get raw value from the specified category
   const category = r.Financials[cat as keyof typeof r.Financials];
-  if (!category) return 0;
-  return safeNum((category as any)[field]);
+  let val = category ? safeNum((category as any)[fieldKey]) : 0;
+
+  const getAltKeyVal = (catObj: any, keys: string[]) => {
+    for (const k of keys) {
+      if (catObj[k] !== undefined && catObj[k] !== null) {
+        const parsed = safeNum(catObj[k]);
+        if (parsed !== 0) return parsed;
+      }
+    }
+    return 0;
+  };
+
+  if (val === 0 && category) {
+    if (fieldKey === "roe") val = getAltKeyVal(category, ["returnOnEquity", "ReturnOnEquity"]);
+    if (fieldKey === "roa") val = getAltKeyVal(category, ["returnOnAssets", "ReturnOnAssets"]);
+    if (fieldKey === "debtToEquity") val = getAltKeyVal(category, ["debtToEquityRatio", "debtEquity", "debtEquityRatio"]);
+    if (fieldKey === "eps") val = getAltKeyVal(category, ["earningsPerShare", "BasicEPS", "basicEps", "dilutedEps"]);
+  }
+
+  // Helper to extract basic fields dynamically with formula/derivation logic
+  const getISVal = (f: string) => {
+    const inc = r.Financials.incomeStatement || {};
+    let raw = safeNum(inc[f]);
+    if (raw !== 0) return raw;
+
+    // Derivation fallbacks
+    const rev = safeNum(inc.revenue);
+    const cogs = safeNum(inc.costOfGoodsSold);
+    const opex = safeNum(inc.operatingExpenses);
+    const gp = safeNum(inc.grossProfit) || (rev - cogs);
+
+    if (f === "grossProfit") return gp;
+    if (f === "ebit") return safeNum(inc.operatingProfit) || (rev - cogs - opex);
+    if (f === "ebitda") {
+      const ebitVal = safeNum(inc.ebit) || safeNum(inc.operatingProfit) || (rev - cogs - opex);
+      return ebitVal + safeNum(inc.depreciation) + safeNum(inc.amortization);
+    }
+    if (f === "profitBeforeTax") {
+      const ebitVal = safeNum(inc.ebit) || safeNum(inc.operatingProfit) || (rev - cogs - opex);
+      return ebitVal + safeNum(inc.financeIncome) - safeNum(inc.financeCost);
+    }
+    if (f === "netProfit") {
+      const pbt = safeNum(inc.profitBeforeTax) || (gp - opex + safeNum(inc.financeIncome) - safeNum(inc.financeCost));
+      return pbt - safeNum(inc.taxExpense);
+    }
+    return 0;
+  };
+
+  const getBSVal = (f: string) => {
+    const bal = r.Financials.balanceSheet || {};
+    let raw = safeNum(bal[f]);
+    if (raw !== 0) return raw;
+
+    const assets = safeNum(bal.totalAssets);
+    const liab = safeNum(bal.totalLiabilities);
+    const eq = safeNum(bal.totalEquity);
+
+    if (f === "totalEquity") return eq || (assets - liab);
+    if (f === "totalLiabilities") return liab || (assets - eq);
+    return 0;
+  };
+
+  // If it's a ratio and it is 0, calculate it dynamically using derived values!
+  if (cat === "ratios" && val === 0) {
+    const netProfit = getISVal("netProfit");
+    const revenue = getISVal("revenue");
+    const totalEquity = getBSVal("totalEquity");
+    const totalAssets = getBSVal("totalAssets");
+    const grossProfit = getISVal("grossProfit");
+    const ebit = getISVal("ebit");
+    const bal = r.Financials.balanceSheet || {};
+
+    if (fieldKey === "roe") {
+      return totalEquity > 0 ? netProfit / totalEquity : 0;
+    }
+    if (fieldKey === "roa") {
+      return totalAssets > 0 ? netProfit / totalAssets : 0;
+    }
+    if (fieldKey === "roic") {
+      const stDebt = safeNum(bal.shortTermDebt || bal.currentLiabilities);
+      const ltDebt = safeNum(bal.longTermDebt || bal.nonCurrentLiabilities);
+      const bonds = safeNum(bal.bondsPayable || 0);
+      const totalDebt = stDebt + ltDebt + bonds;
+      const cashAndEquiv = safeNum(bal.cashAndEquivalents);
+      const investedCapital = totalDebt + totalEquity - cashAndEquiv;
+
+      const taxRate = safeNum(r.Financials.incomeStatement?.effectiveTaxRate) || 0.24;
+      const nopat = ebit * (1 - taxRate);
+      return investedCapital > 0 ? nopat / investedCapital : (totalEquity > 0 ? nopat / totalEquity : 0);
+    }
+    if (fieldKey === "grossMargin") {
+      return revenue > 0 ? grossProfit / revenue : 0;
+    }
+    if (fieldKey === "operatingMargin") {
+      return revenue > 0 ? ebit / revenue : 0;
+    }
+    if (fieldKey === "netProfitMargin" || fieldKey === "netMargin") {
+      return revenue > 0 ? netProfit / revenue : 0;
+    }
+    if (fieldKey === "currentRatio") {
+      const curAssets = safeNum(bal.currentAssets) || totalAssets;
+      const curLiab = safeNum(bal.currentLiabilities) || safeNum(bal.totalLiabilities);
+      return curLiab > 0 ? curAssets / curLiab : 0;
+    }
+    if (fieldKey === "debtToEquity") {
+      const stDebt = safeNum(bal.shortTermDebt || bal.currentLiabilities);
+      const ltDebt = safeNum(bal.longTermDebt || bal.nonCurrentLiabilities);
+      const bonds = safeNum(bal.bondsPayable || 0);
+      const totalDebt = stDebt + ltDebt + bonds;
+      const debt = totalDebt > 0 ? totalDebt : safeNum(bal.totalLiabilities);
+      return totalEquity > 0 ? debt / totalEquity : 0;
+    }
+    if (fieldKey === "debtRatio") {
+      const liab = getBSVal("totalLiabilities");
+      return totalAssets > 0 ? liab / totalAssets : 0;
+    }
+    if (fieldKey === "interestCoverage") {
+      const finCost = safeNum(r.Financials.incomeStatement?.financeCost);
+      return finCost > 0 ? ebit / finCost : 0;
+    }
+    if (fieldKey === "eps") {
+      // 1. Try to find shares outstanding
+      let shares = safeNum(r.Financials.ratios?.sharesOutstanding || r.Financials.advanced?.weightedAverageSharesOutstanding);
+      
+      // 2. Try to find shares from other years of the same company in history context
+      if (shares <= 1 && history) {
+        for (const otherRep of history) {
+          const otherShares = safeNum(otherRep.Financials.ratios?.sharesOutstanding || otherRep.Financials.advanced?.weightedAverageSharesOutstanding);
+          if (otherShares > 1) {
+            shares = otherShares;
+            break;
+          }
+          const otherNet = safeNum(otherRep.Financials.incomeStatement?.netProfit);
+          const otherEpsVal = getAltKeyVal(otherRep.Financials.ratios || {}, ["eps", "earningsPerShare", "BasicEPS", "basicEps"]);
+          if (otherNet > 0 && otherEpsVal > 0 && otherEpsVal < 10) {
+            shares = otherNet / otherEpsVal;
+            break;
+          }
+        }
+      }
+      
+      if (shares > 1) {
+        if (shares > 100000000) {
+          return (netProfit * 1000) / shares;
+        } else {
+          return netProfit / shares;
+        }
+      }
+
+      // 3. Fallback: Parse directly from the pureMarkdown string
+      const md = r.Markdown?.pureMarkdown || "";
+      const lines = md.split("\n");
+      for (let i = 0; i < lines.length; i++) {
+        if (/Basic\/Diluted\s+earnings/i.test(lines[i]) || /Basic\s+earnings\s+per\s+share/i.test(lines[i])) {
+          for (let offset = 1; offset <= 3; offset++) {
+            const nextLine = lines[i + offset] || "";
+            const numMatches = nextLine.match(/(\d+\.\d+)/g);
+            if (numMatches && numMatches.length > 0) {
+              const parsedEps = parseFloat(numMatches[0]);
+              if (parsedEps > 0) {
+                // Return as decimal of RM (e.g. 37.4 sen -> 0.374 RM)
+                return parsedEps > 1 ? parsedEps / 100 : parsedEps;
+              }
+            }
+          }
+        }
+      }
+
+      return shares > 1 ? netProfit / shares : netProfit;
+    }
+  }
+
+  // Also apply basic fallback derivations for income statement & balance sheet if raw is 0
+  if (cat === "incomeStatement" && val === 0) {
+    val = getISVal(fieldKey);
+  }
+  if (cat === "balanceSheet" && val === 0) {
+    val = getBSVal(fieldKey);
+  }
+
+  return val;
 }
 
 // Metric metadata dictionary for the trend metric selector
@@ -1064,7 +1251,9 @@ ${growth >= 0
                       { id: "grossProfit", label: "Gross Profit", cat: "incomeStatement" },
                       { id: "ebit", label: "Operating Income (EBIT)", cat: "incomeStatement" },
                       { id: "ebitda", label: "EBITDA", cat: "incomeStatement" },
-                      { id: "netProfit", label: "Net Financial Income", cat: "incomeStatement" },
+                      { id: "profitBeforeTax", label: "Profit Before Tax", cat: "incomeStatement" },
+                      { id: "netProfit", label: "Net profit to shareholders", cat: "incomeStatement" },
+                      { id: "eps", label: "Basic EPS", cat: "ratios" },
                     ]
                   },
                   {
@@ -1072,6 +1261,7 @@ ${growth >= 0
                       { id: "cashAndEquivalents", label: "Cash Reserves", cat: "balanceSheet" },
                       { id: "totalAssets", label: "Total Asset Base", cat: "balanceSheet" },
                       { id: "totalLiabilities", label: "Total Liabilities Balance", cat: "balanceSheet" },
+                      { id: "debtToEquity", label: "Debt to Equity Ratio", cat: "ratios" },
                       { id: "totalEquity", label: "Shareholder Reserves", cat: "balanceSheet" },
                     ]
                   },
@@ -1117,9 +1307,9 @@ ${growth >= 0
                         </td>
 
                         {fullCompanyHistory.map((rep, idx) => {
-                          const val = getReportVal(rep, item.cat, item.id);
+                          const val = getReportVal(rep, item.cat, item.id, fullCompanyHistory);
                           const prevRep = fullCompanyHistory[idx + 1];
-                          const prevVal = prevRep ? getReportVal(prevRep, item.cat, item.id) : null;
+                          const prevVal = prevRep ? getReportVal(prevRep, item.cat, item.id, fullCompanyHistory) : null;
 
                           let diffIcon = null;
                           if (prevVal !== null) {
@@ -1131,11 +1321,24 @@ ${growth >= 0
                           // Heatmap color shading
                           let styleCell = {};
                           if (statementDisplayMode === "heatmap" && val > 0) {
-                            const maxInRow = Math.max(...fullCompanyHistory.map((r) => getReportVal(r, item.cat, item.id)));
+                            const maxInRow = Math.max(...fullCompanyHistory.map((r) => getReportVal(r, item.cat, item.id, fullCompanyHistory)));
                             const ratio = maxInRow > 0 ? val / maxInRow : 0;
                             styleCell = {
                               backgroundColor: `rgba(16, 185, 129, ${0.05 + ratio * 0.2})`,
                             };
+                          }
+
+                          let displayVal = "";
+                          if (item.cat === "ratios") {
+                            if (["roe", "roa", "roic", "grossMargin", "operatingMargin", "netMargin", "netProfitMargin"].includes(item.id)) {
+                              displayVal = `${(val * 100).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
+                            } else if (item.id === "eps") {
+                              displayVal = val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 3 });
+                            } else {
+                              displayVal = `${val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}x`;
+                            }
+                          } else {
+                            displayVal = (val / 1000).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
                           }
 
                           return (
@@ -1144,7 +1347,7 @@ ${growth >= 0
                               style={styleCell}
                               className="px-6 py-3 text-center border-l border-hacker-border/10 font-bold text-hacker-text-main"
                             >
-                              <span>{(val / 1000).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span>
+                              <span>{displayVal}</span>
                               {diffIcon}
                             </td>
                           );
