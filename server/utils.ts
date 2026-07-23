@@ -124,3 +124,59 @@ export function detectYear(text: string, defaultYear: string = "2025"): string {
 
   return defaultYear;
 }
+
+export function detectPeriod(text: string): string {
+  const normalized = text.toLowerCase();
+
+  // Look for quarter keywords
+  if (/\b(1st\s+quarter|first\s+quarter|quarter\s+1|q1)\b/i.test(normalized)) {
+    return "q1";
+  }
+  if (/\b(2nd\s+quarter|second\s+quarter|quarter\s+2|q2)\b/i.test(normalized)) {
+    return "q2";
+  }
+  if (/\b(3rd\s+quarter|third\s+quarter|quarter\s+3|q3)\b/i.test(normalized)) {
+    return "q3";
+  }
+  if (/\b(4th\s+quarter|fourth\s+quarter|quarter\s+4|q4)\b/i.test(normalized)) {
+    return "q4";
+  }
+
+  // Check for common quarterly report title endings, e.g. "three months ended"
+  if (/\bthree\s+months\s+ended\b/i.test(normalized)) {
+    return "q1";
+  }
+  if (/\bsix\s+months\s+ended\b/i.test(normalized)) {
+    return "q2";
+  }
+  if (/\bnine\s+months\s+ended\b/i.test(normalized)) {
+    return "q3";
+  }
+
+  return "annual";
+}
+
+export function detectCurrency(text: string): string {
+  const normalized = text.toLowerCase();
+
+  if (/\b(rm|myr|ringgit)\b/i.test(normalized)) {
+    return "MYR";
+  }
+  if (/\b(usd|\$|dollar|dollars)\b/i.test(normalized)) {
+    return "USD";
+  }
+  if (/\b(cny|rmb|yuan)\b/i.test(normalized)) {
+    return "CNY";
+  }
+  if (/\b(hkd|hk\$)\b/i.test(normalized)) {
+    return "HKD";
+  }
+  if (/\b(jpy|yen|¥)\b/i.test(normalized)) {
+    return "JPY";
+  }
+  if (/\b(eur|euro|euros|€)\b/i.test(normalized)) {
+    return "EUR";
+  }
+
+  return "MYR";
+}

@@ -49,6 +49,7 @@
   --color-hacker-universal-bckgrd: rgba(255, 255, 255, 1);
   --color-hacker-black-white: rgb(0, 0, 0);
   --color-hacker-white-black: rgb(255,255,255);
+  --color-hacker-green: rgb(56, 102, 65);
 }
 
 @layer base {
@@ -66,6 +67,7 @@
     --color-hacker-universal-bckgrd: rgb(0, 0, 0);
     --color-hacker-black-white: rgb(255, 255, 255);
     --color-hacker-white-black: rgb(0,0,0);
+    --color-hacker-green: rgb(37, 210, 37);
 
     /* Sidebar */
     --color-sidebar-bckgrd-color: rgb(0, 0, 0);

@@ -83,7 +83,9 @@ export class AiService implements IAiService {
       .map(([fieldId, config]) => `- ${config.category}.${fieldId}: ${config.keywords.join(", ")}`)
       .join("\n");
 
-    const prompt = `You are extracting financial statement values from markdown.
+    const prompt = `You are a professional financial analyst extracting financial statement values from markdown text.
+First, detect the reporting Currency and Unit of the tables (e.g., USD, MYR, EUR, CNY, and whether it is in thousands '000, millions 'M' or single units).
+Normalize the extracted values to match the reporting scale of the document (do NOT multiply or divide values yourself, extract them as they appear in the tables).
 Return only valid JSON in this exact shape:
 {
   "financials": {

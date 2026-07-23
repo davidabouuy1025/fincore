@@ -340,9 +340,9 @@ export default function App() {
             className="text-[8px] text-hacker-text-main font-extrabold tracking-[0.3em] mt-2 transition-colors"
             style={{
               color:
-                view === "news"
-                  ? "var(color-sidebar-icon-active)"
-                  : "var(color-sidebar-core-text)"
+                view === "info"
+                  ? "var(--color-sidebar-icon-active)"
+                  : "var(--color-sidebar-core-text)"
             }}
           >
             CORE
@@ -386,7 +386,7 @@ export default function App() {
         </div>
       </nav>
 
-      <main className="ml-[72px] min-h-screen relative z-10">
+      <main className="ml-[75px] min-h-screen relative z-10">
         <AnimatePresence mode="wait">
           {view === "upload" && (
             <UploadView

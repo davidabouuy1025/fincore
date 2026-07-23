@@ -205,7 +205,7 @@ export const FINANCIAL_DICTIONARY: Record<string, { category: string }> = {
 
   enterpriseValue: { category: "advanced" },
   evEbitda: { category: "advanced" },
-  fcfYield: { category: "advanced text-right" },
+  fcfYield: { category: "advanced" },
   eva: { category: "advanced" },
   workingCapital: { category: "advanced" },
   netWorkingCapital: { category: "advanced" },

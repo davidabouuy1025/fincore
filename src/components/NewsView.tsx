@@ -689,7 +689,7 @@ export function NewsView() {
 
         {/* Right Column: Interactive Keyword Management System */}
         <div className="lg:col-span-4 space-y-6">
-          <div className="bg-[var(--color-hacker-univeresal-bckgrd)] border border-[var(--color-hacker-border)] hover:border-[var(--color-hacker-border-green)] hover:border-2 p-6 rounded-3xl shadow-3xs space-y-4">
+          <div className="bg-[var(--color-hacker-universal-bckgrd)] border border-[var(--color-hacker-border)] hover:border-[var(--color-hacker-border-green)] hover:border-2 p-6 rounded-3xl shadow-3xs space-y-4">
             <div>
               <h2 className="text-xs font-extrabold uppercase text-[var(--color-hacker-black-white)] tracking-wider">
                 Keyword Management System
