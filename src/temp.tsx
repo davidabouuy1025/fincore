@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { CompanyReport, Financials } from "../types";
+import { CompanyReport, Financials } from "./types";
 import { 
   calculateCore8Metrics, 
   calculateSectorMetrics, 

@@ -145,7 +145,7 @@ export function DashboardView({
                     <Eye className="w-4 h-4 text-slate-400 dark:text-hacker-text-submain opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
                   <p className="text-xs font-bold text-slate-800 dark:text-hacker-text-main truncate mb-1">{r.Metadata.CompanyName}</p>
-                  <p className="text-[10px] text-slate-400 dark:text-hacker-text-submain font-semibold mb-3">{r.Metadata.DocType.replace("_", " ")}</p>
+                  <p className="text-[10px] text-slate-400 dark:text-hacker-text-submain font-semibold mb-3">{r.Metadata.DocType?.replace("_", " ") || "DOCUMENT"}</p>
                   <div className="space-y-1 text-[10px]">
                     <div className="flex justify-between">
                       <span className="text-slate-400 dark:text-hacker-text-submain font-medium">Revenue</span>

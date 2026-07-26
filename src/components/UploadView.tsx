@@ -2119,7 +2119,7 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
                         <div ref={pdfScrollContainerRef} className="flex-1 overflow-y-auto border border-slate-200 dark:border-zinc-800/80 rounded-xl bg-white dark:bg-zinc-950 p-3 flex flex-col items-center">
                           <Document
                             file={`/reports/${selectedStoredFileName}`}
-                            onLoadSuccess={({ numPages }) => {
+                            onLoadSuccess={({ numPages }: { numPages: number }) => {
                               setPdfNumPages(numPages);
                               const firstPage = getFirstSelectedPage(activeReviewDoc?.selectedPages, numPages);
                               setTimeout(() => {

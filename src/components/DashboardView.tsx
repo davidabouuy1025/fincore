@@ -1270,14 +1270,14 @@ ${growth >= 0
                 </h4>
                 <div className="divide-y divide-hacker-border/10 text-xs">
                   {[...comparisonChartData]
-                    .sort((a, b) => b[METRIC_DICT[compareMetric].label] - a[METRIC_DICT[compareMetric].label])
+                    .sort((a, b) => Number(b[METRIC_DICT[compareMetric].label] || 0) - Number(a[METRIC_DICT[compareMetric].label] || 0))
                     .map((item, idx) => (
                       <div key={idx} className="flex justify-between items-center py-2.5">
                         <span className="font-bold text-hacker-text-submain">
                           #{idx + 1} {item.fullName}
                         </span>
                         <span className="font-mono font-black text-hacker-text-main">
-                          RM {(item[METRIC_DICT[compareMetric].label] / 1000).toFixed(0)}M
+                          RM {(Number(item[METRIC_DICT[compareMetric].label] || 0) / 1000).toFixed(0)}M
                         </span>
                       </div>
                     ))}
