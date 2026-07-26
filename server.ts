@@ -8,12 +8,32 @@ import pdf from "pdf-parse";
 const parsePdf = (pdf as any).default || pdf;
 import { XMLBuilder, XMLParser } from "fast-xml-parser";
 import dotenv from "dotenv";
+import { GoogleGenAI } from "@google/genai";
 import { FINANCIAL_DICTIONARY } from "./server/dictionary";
 import { extractValue, performOCR, performPdfOCR, toPureMarkdown } from "./server/parser";
 import { detectCompanyName, detectSector, toTitleCase, detectYear } from "./server/utils";
 import { loadNewsDb, saveNewsDb, crawlKeywordRSS, scrapeArticleText, Article } from "./server/news_service";
 
 dotenv.config();
+
+let aiInstance: GoogleGenAI | null = null;
+function getGeminiClient() {
+  if (!aiInstance) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error("GEMINI_API_KEY environment variable is required");
+    }
+    aiInstance = new GoogleGenAI({
+      apiKey,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        }
+      }
+    });
+  }
+  return aiInstance;
+}
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -232,10 +252,7 @@ function normalizeAiFinancials(parsed: any) {
 }
 
 async function extractFinancialsWithGemini(markdown: string) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error("GEMINI_API_KEY not configured");
-  }
+  const ai = getGeminiClient();
 
   const fieldList = Object.entries(FINANCIAL_DICTIONARY)
     .map(([fieldId, config]) => `- ${config.category}.${fieldId}: ${config.keywords.join(", ")}`)
@@ -260,27 +277,18 @@ ${fieldList}
 MARKDOWN:
 ${markdown.slice(0, 120000)}`;
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0,
-          responseMimeType: "application/json",
-        },
-      }),
+  const response = await ai.models.generateContent({
+    model: "gemini-3.5-flash",
+    contents: prompt,
+    config: {
+      temperature: 0,
+      responseMimeType: "application/json",
     }
-  );
+  });
 
-  const data: any = await response.json();
-  if (!response.ok) {
-    throw new Error(data.error?.message || "Gemini request failed");
-  }
+  const text = response.text;
+  if (!text) throw new Error("Gemini returned no response text");
 
-  const text = data.candidates?.[0]?.content?.parts?.map((part: any) => part.text || "").join("") || "";
   const json = extractJsonObject(text);
   if (!json) throw new Error("Gemini returned no JSON");
 
@@ -381,12 +389,20 @@ async function startServer() {
 
   // ── POST /api/save - Save edited data ──
   app.post("/api/save", async (req, res) => {
-
+    console.log("[SAVE] /api/save hit! Request body:", JSON.stringify(req.body, null, 2));
     try {
       const { reports, year, sector } = req.body;
 
       if (!reports || !Array.isArray(reports)) {
         return res.status(400).json({ error: "Invalid reports data" });
+      }
+
+      // Log current files in STORAGE_ROOT for debugging
+      try {
+        const currentFiles = fs.readdirSync(STORAGE_ROOT);
+        console.log(`[SAVE] Current files on disk in STORAGE_ROOT (${STORAGE_ROOT}):`, currentFiles);
+      } catch (err: any) {
+        console.error("[SAVE] Failed to read STORAGE_ROOT:", err);
       }
 
       const saved = [];
@@ -397,6 +413,8 @@ async function startServer() {
         const reportSector = report.sector || sector;
         const pureMarkdown = report.markdown?.pureMarkdown || report.Markdown?.pureMarkdown || report.pureMarkdown || "";
         companyName = toTitleCase(companyName);
+
+        console.log(`[SAVE] Processing report for ${companyName} (${reportYear}), storedFileName: ${storedFileName}`);
 
         if (!companyName?.trim()) {
           return res.status(400).json({
@@ -429,10 +447,15 @@ async function startServer() {
           }
         }
 
-        // Rename the physical uploaded PDFs to COMPANY_YEAR.pdf, COMPANY_YEAR_2.pdf, etc.
+        console.log(`[SAVE] storedFilesArray parsed:`, storedFilesArray);
+
+        // Rename the physical uploaded PDFs to exactly COMPANY_YEAR.pdf, COMPANY_YEAR_2.pdf, etc. (time/timestamp is NOT included)
         const cleanCompany = companyName.toUpperCase().replace(/[^A-Z0-9]/g, "_").replace(/_+/g, "_").replace(/(^_|_$)/g, "");
         const companyBase = cleanCompany || "COMPANY";
-        const baseName = `${companyBase}_${reportYear}`;
+        const actualCompanyYear = `${companyBase}_${reportYear}`;
+        const baseName = actualCompanyYear;
+
+        console.log(`[SAVE] Computed baseName for renaming (exactly COMPANY_YEAR):`, baseName);
 
         const updatedStoredFiles: string[] = [];
         const updatedOriginalFiles: string[] = [];
@@ -452,7 +475,10 @@ async function startServer() {
           const oldPath = path.join(STORAGE_ROOT, oldFile);
           const newPath = path.join(STORAGE_ROOT, targetName);
 
-          if (fs.existsSync(oldPath)) {
+          const exists = fs.existsSync(oldPath);
+          console.log(`[SAVE] Checking oldPath: ${oldPath} (exists: ${exists}), targetName: ${targetName}, newPath: ${newPath}`);
+
+          if (exists) {
             if (oldPath !== newPath) {
               if (fs.existsSync(newPath)) {
                 try { fs.unlinkSync(newPath); } catch {}
@@ -771,11 +797,7 @@ async function startServer() {
   app.post("/api/ai-insights", async (req, res) => {
     try {
       const { reports, sector, year } = req.body;
-      const apiKey = process.env.GEMINI_API_KEY;
-
-      if (!apiKey) {
-        return res.status(500).json({ error: "GEMINI_API_KEY not configured" });
-      }
+      const ai = getGeminiClient();
 
       const prompt = `You are a financial analyst specializing in Bursa Malaysia.
         Analyze the following financial data for companies in the ${sector} sector for FY${year}.
@@ -797,27 +819,20 @@ async function startServer() {
         2
       )}`;
 
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{ role: "user", parts: [{ text: prompt }] }],
-            generationConfig: {
-              temperature: 0.2,
-            },
-          }),
+      const response = await ai.models.generateContent({
+        model: "gemini-3.5-flash",
+        contents: prompt,
+        config: {
+          temperature: 0.2,
         }
-      );
+      });
 
-      const data: any = await response.json();
-      const text = data.candidates?.[0]?.content?.parts?.map((part: any) => part.text || "").join("") || "";
+      const text = response.text;
 
       if (text) {
         res.json({ text });
       } else {
-        res.status(500).json({ error: data.error?.message || "Invalid response from AI" });
+        res.status(500).json({ error: "Invalid response from AI" });
       }
     } catch (err: any) {
       res.status(500).json({ error: err.message });
