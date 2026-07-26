@@ -726,6 +726,12 @@ export function FinCoreView({
                   <p className="text-[11px] text-hacker-text-muted font-medium leading-relaxed mt-2 italic font-mono">
                     {item.desc}
                   </p>
+                  {item.name.includes("Free Cash Flow") && (["q1", "q2", "q3", "q4"].includes(selectedReport?.Metadata?.Period?.toLowerCase() || "")) && safeNum(selectedReport?.Financials?.cashFlow?.freeCashFlow) === 0 && safeNum(selectedReport?.Financials?.cashFlow?.operatingCashFlow) === 0 && (
+                    <div className="flex items-center gap-1.5 mt-2.5 px-3 py-1.5 bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 rounded-lg text-[10px] font-bold font-sans">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0 text-amber-500" />
+                      <span>Cash flow statement omitted in condensed interim quarterly report. Quality score uses neutral weighting.</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Slider visual track representation of interpretation band */}

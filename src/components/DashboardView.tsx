@@ -934,8 +934,30 @@ ${growth >= 0
         ))}
       </div>
 
-      {/* ── TAB 1: OVERVIEW METRICS ── */}
-      {activeTab === "overview" && overviewStats && (
+      {filteredReports.length === 0 ? (
+        <div className="bg-white dark:bg-hacker-card-bg border border-hacker-border/40 rounded-2xl p-12 text-center shadow-3xs space-y-4 my-6">
+          <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center mx-auto">
+            <Layers className="w-6 h-6" />
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-hacker-text-main">
+              No {dashboardPeriodFilter === "quarterly" ? "Quarterly" : "Annual"} Reports Available
+            </h3>
+            <p className="text-xs text-hacker-text-muted max-w-md mx-auto mt-1">
+              There are no {dashboardPeriodFilter} financial reports stored for sector <span className="font-semibold">{sector}</span> ({year}). Upload {dashboardPeriodFilter} condensed interim statements in the Ingest tab to enable this view.
+            </p>
+          </div>
+          <button
+            onClick={() => setView("upload")}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-teal-800 text-white dark:text-teal-400 hover:bg-teal-700 transition-colors cursor-pointer"
+          >
+            Go to Ingest Tab <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      ) : (
+        <>
+          {/* ── TAB 1: OVERVIEW METRICS ── */}
+          {activeTab === "overview" && overviewStats && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Topline Growth Card */}
@@ -1330,6 +1352,7 @@ ${growth >= 0
                     section: "CASH FLOW STATEMENT", items: [
                       { id: "operatingCashFlow", label: "Operating Cash Flow", cat: "cashFlow" },
                       { id: "freeCashFlow", label: "Free Capital Cash Flow", cat: "cashFlow" },
+                      { id: "dividendsPaid", label: "Dividends Paid", cat: "cashFlow" },
                     ]
                   },
                   {
@@ -1337,6 +1360,7 @@ ${growth >= 0
                       { id: "roe", label: "ROE", cat: "ratios" },
                       { id: "roa", label: "ROA", cat: "ratios" },
                       { id: "roic", label: "ROIC", cat: "ratios" },
+                      { id: "dividendPayoutRatio", label: "Payout Ratio", cat: "ratios" },
                     ]
                   },
                   {
@@ -1390,8 +1414,13 @@ ${growth >= 0
                           }
 
                           let displayVal = "";
+                          const normalizedRatioVal = (val > 0 && val <= 1.5) ? val * 100 : val;
+                          const isAnomalousPayout = item.id === "dividendPayoutRatio" && normalizedRatioVal > 150;
+
                           if (item.cat === "ratios") {
-                            if (["roe", "roa", "roic", "grossMargin", "operatingMargin", "netMargin", "netProfitMargin"].includes(item.id)) {
+                            if (item.id === "dividendPayoutRatio") {
+                              displayVal = `${normalizedRatioVal.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
+                            } else if (["roe", "roa", "roic", "grossMargin", "operatingMargin", "netMargin", "netProfitMargin"].includes(item.id)) {
                               displayVal = `${(val * 100).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
                             } else if (item.id === "eps") {
                               displayVal = val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 3 });
@@ -1412,6 +1441,11 @@ ${growth >= 0
                               className="px-6 py-3 text-center border-l border-hacker-border/10 font-bold text-hacker-text-main"
                             >
                               <span>{displayVal}</span>
+                              {isAnomalousPayout && (
+                                <span title="Payout ratio exceeds 150% of net profit — may include special dividends or capital returns from reserves." className="ml-1.5 cursor-help text-amber-500 font-bold">
+                                  ⚠️
+                                </span>
+                              )}
                               {diffIcon}
                             </td>
                           );
@@ -1553,6 +1587,8 @@ ${growth >= 0
             </div>
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );
