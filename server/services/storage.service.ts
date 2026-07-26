@@ -129,7 +129,18 @@ export class StorageService implements IStorageService {
           Sector: reportSector,
           OriginalFileName: originalFilesArray.length > 0 ? (originalFilesArray.length === 1 ? originalFilesArray[0] : originalFilesArray) : originalFileName,
           StoredFileName: storedFilesArray.length > 0 ? (storedFilesArray.length === 1 ? storedFilesArray[0] : storedFilesArray) : storedFileName,
-          Currency: currency || "MYR '000",
+          Currency: (function(raw: any): string {
+            if (!raw) return "MYR";
+            const str = String(raw).trim();
+            if (/\b(rm|myr|ringgit)\b/i.test(str)) return "MYR";
+            if (/\b(usd|\$|dollar)\b/i.test(str)) return "USD";
+            if (/\b(cny|rmb|yuan)\b/i.test(str)) return "CNY";
+            if (/\b(hkd)\b/i.test(str)) return "HKD";
+            if (/\b(jpy|yen|¥)\b/i.test(str)) return "JPY";
+            if (/\b(eur|euro|€)\b/i.test(str)) return "EUR";
+            const clean = str.replace(/[^A-Z]/g, "").slice(0, 3);
+            return clean || "MYR";
+          })(currency),
           DocType: docType,
           ProcessedAt: new Date().toISOString(),
           SelectedPages: selectedPages || "",

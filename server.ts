@@ -32,7 +32,18 @@ async function startServer() {
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
-  // Expose the raw uploaded financial files statically
+  // Expose the raw uploaded financial files statically with extension fallback (.md -> .pdf)
+  app.use("/reports/:filename", (req, res, next) => {
+    const filename = req.params.filename;
+    const filePath = path.join(STORAGE_ROOT, filename);
+    if (!fs.existsSync(filePath) && filename.endsWith(".md")) {
+      const pdfPath = path.join(STORAGE_ROOT, filename.replace(/\.md$/, ".pdf"));
+      if (fs.existsSync(pdfPath)) {
+        return res.sendFile(pdfPath);
+      }
+    }
+    next();
+  });
   app.use("/reports", express.static(STORAGE_ROOT));
 
   // Mount the decoupled routing layer
