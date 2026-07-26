@@ -148,10 +148,7 @@ export function UploadView({
   const [isIngestingJson, setIsIngestingJson] = useState<boolean>(false);
   const [ingestStatus, setIngestStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [mdObjectUrl, setMdObjectUrl] = useState<string | null>(null);
-  const [mdUploadedStoredFileName, setMdUploadedStoredFileName] = useState<string>("");
-  const [selectedMdYear, setSelectedMdYear] = useState<string>("2025");
-  const [selectedMdPeriod, setSelectedMdPeriod] = useState<string>("annual");
-  const [selectedMdCurrency, setSelectedMdCurrency] = useState<string>("MYR");
+  const [tempUploadedFileName, setTempUploadedFileName] = useState<string>("");
 
   const getPromptTemplate = () => {
     return `As professional auditor, convert markdown into JSON. Use the formula to calculate if any value is missing but derivable, else leave as 0. STRICTLY double check all the values ensuring that all the values are correct for the financial year.
@@ -306,10 +303,9 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
       if (data.success && data.parsed && data.parsed.length > 0) {
         const doc = data.parsed[0];
         setConvertedMarkdown(doc.markdown?.pureMarkdown || doc.rawText || "No markdown content could be extracted.");
-        setMdUploadedStoredFileName(doc.storedFileName || "");
-        if (doc.suggestedYear) setSelectedMdYear(doc.suggestedYear);
-        if (doc.suggestedPeriod) setSelectedMdPeriod(doc.suggestedPeriod);
-        if (doc.suggestedCurrency) setSelectedMdCurrency(doc.suggestedCurrency);
+        if (doc.storedFileName) {
+          setTempUploadedFileName(doc.storedFileName);
+        }
       } else {
         throw new Error(data.error || "Failed to parse file.");
       }
@@ -381,12 +377,13 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
       const cleanCurrency = String(selectedMdCurrency || parsedJson.currency || "MYR").trim();
 
       // Prepare payload to match standard save format
+      const pastedStoredFileName = parsedJson.storedfilename || parsedJson.storedFileName || "";
       const payload = {
         reports: [
           {
             companyName: parsedJson.companyName,
             financials: formattedFinancials,
-            storedFileName: mdUploadedStoredFileName || parsedJson.storedFileName || mdFile?.name || "external_paste.json",
+            storedFileName: tempUploadedFileName || pastedStoredFileName || mdFile?.name || "external_paste.json",
             originalFileName: parsedJson.originalFileName || mdFile?.name || "external_paste.json",
             docType: parsedJson.docType || "DIGITAL_PDF",
             year: cleanYear,
@@ -396,7 +393,9 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
             markdown: {
               pureMarkdown: mdText
             },
-            selectedPages: parsedJson.selectedPages || mdSelectedPages || ""
+            selectedPages: parsedJson.selectedPages || mdSelectedPages || "",
+            storedfilename: pastedStoredFileName,
+            storedFileNameCustom: pastedStoredFileName
           }
         ],
         year: cleanYear,
@@ -424,6 +423,7 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
         setUserPastedJson("");
         setMdFile(null);
         setConvertedMarkdown("");
+        setTempUploadedFileName("");
       } else {
         throw new Error(saveResult.error || "Failed to save to database via server API.");
       }
@@ -2035,7 +2035,7 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
             <button
               onClick={() => {
                 setUploadStep("select");
-                setIngestMode("new");
+                setIngestMode("markdown");
               }}
               className="text-[10px] border border-slate-200 dark:border-zinc-850 bg-white dark:bg-zinc-900 rounded-xl px-4 py-2.5 font-black tracking-wider text-slate-500 dark:text-zinc-400 hover:border-emerald-500 hover:text-emerald-500 transition-all flex items-center gap-2 cursor-pointer uppercase shadow-3xs"
             >
