@@ -149,6 +149,9 @@ export function UploadView({
   const [ingestStatus, setIngestStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [mdObjectUrl, setMdObjectUrl] = useState<string | null>(null);
   const [tempUploadedFileName, setTempUploadedFileName] = useState<string>("");
+  const [selectedMdYear, setSelectedMdYear] = useState<string>("2025");
+  const [selectedMdPeriod, setSelectedMdPeriod] = useState<string>("annual");
+  const [selectedMdCurrency, setSelectedMdCurrency] = useState<string>("MYR");
 
   const getPromptTemplate = () => {
     return `As professional auditor, convert markdown into JSON. Use the formula to calculate if any value is missing but derivable, else leave as 0. STRICTLY double check all the values ensuring that all the values are correct for the financial year.
