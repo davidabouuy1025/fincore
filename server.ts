@@ -39,7 +39,7 @@ async function startServer() {
     if (!fs.existsSync(filePath) && filename.endsWith(".md")) {
       const pdfPath = path.join(STORAGE_ROOT, filename.replace(/\.md$/, ".pdf"));
       if (fs.existsSync(pdfPath)) {
-        return res.sendFile(pdfPath);
+        return res.sendFile(path.resolve(pdfPath));
       }
     }
     next();

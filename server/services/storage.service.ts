@@ -131,13 +131,13 @@ export class StorageService implements IStorageService {
           StoredFileName: storedFilesArray.length > 0 ? (storedFilesArray.length === 1 ? storedFilesArray[0] : storedFilesArray) : storedFileName,
           Currency: (function(raw: any): string {
             if (!raw) return "MYR";
-            const str = String(raw).trim();
-            if (/\b(rm|myr|ringgit)\b/i.test(str)) return "MYR";
-            if (/\b(usd|\$|dollar)\b/i.test(str)) return "USD";
-            if (/\b(cny|rmb|yuan)\b/i.test(str)) return "CNY";
-            if (/\b(hkd)\b/i.test(str)) return "HKD";
-            if (/\b(jpy|yen|¥)\b/i.test(str)) return "JPY";
-            if (/\b(eur|euro|€)\b/i.test(str)) return "EUR";
+            const str = String(raw).trim().toUpperCase();
+            if (str.includes("MYR") || str.includes("RM") || str.includes("RINGGIT")) return "MYR";
+            if (str.includes("USD") || str.includes("DOLLAR") || str.includes("$")) return "USD";
+            if (str.includes("CNY") || str.includes("RMB") || str.includes("YUAN")) return "CNY";
+            if (str.includes("HKD")) return "HKD";
+            if (str.includes("JPY") || str.includes("YEN") || str.includes("¥")) return "JPY";
+            if (str.includes("EUR") || str.includes("EURO") || str.includes("€")) return "EUR";
             const clean = str.replace(/[^A-Z]/g, "").slice(0, 3);
             return clean || "MYR";
           })(currency),

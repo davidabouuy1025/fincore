@@ -157,24 +157,24 @@ export function detectPeriod(text: string): string {
 }
 
 export function detectCurrency(text: string): string {
-  const normalized = text.toLowerCase();
+  const str = text.toUpperCase();
 
-  if (/\b(rm|myr|ringgit)\b/i.test(normalized)) {
+  if (str.includes("MYR") || str.includes("RM") || str.includes("RINGGIT")) {
     return "MYR";
   }
-  if (/\b(usd|\$|dollar|dollars)\b/i.test(normalized)) {
+  if (str.includes("USD") || str.includes("DOLLAR") || str.includes("$")) {
     return "USD";
   }
-  if (/\b(cny|rmb|yuan)\b/i.test(normalized)) {
+  if (str.includes("CNY") || str.includes("RMB") || str.includes("YUAN")) {
     return "CNY";
   }
-  if (/\b(hkd|hk\$)\b/i.test(normalized)) {
+  if (str.includes("HKD")) {
     return "HKD";
   }
-  if (/\b(jpy|yen|¥)\b/i.test(normalized)) {
+  if (str.includes("JPY") || str.includes("YEN") || str.includes("¥")) {
     return "JPY";
   }
-  if (/\b(eur|euro|euros|€)\b/i.test(normalized)) {
+  if (str.includes("EUR") || str.includes("EURO") || str.includes("€")) {
     return "EUR";
   }
 

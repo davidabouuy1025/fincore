@@ -86,6 +86,7 @@ export class AiService implements IAiService {
     const prompt = `You are a professional financial analyst extracting financial statement values from markdown text.
 First, detect the reporting Currency and Unit of the tables (e.g., USD, MYR, EUR, CNY, and whether it is in thousands '000, millions 'M' or single units).
 Normalize the extracted values to match the reporting scale of the document (do NOT multiply or divide values yourself, extract them as they appear in the tables).
+If this is a quarterly interim financial report (Q1, Q2, Q3, Q4), extract the cumulative Year-To-Date (YTD / 6 months / 9 months) figures rather than individual 3-month single-quarter numbers whenever both are present.
 Return only valid JSON in this exact shape:
 {
   "financials": {
