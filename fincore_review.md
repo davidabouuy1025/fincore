@@ -2,6 +2,8 @@
 
 *Last reviewed: 2026-07-23 — Data source: `fincore_db/` with 5 real XML reports across 3 companies (Public Bank Berhad Q1/Q2 2024, Public Bank Berhad 2025, CIMB Group Holdings 2025, Sunway Healthcare Holdings 2026).*
 
+# Current status: *SOLVED*
+
 ---
 
 ## Checked Features

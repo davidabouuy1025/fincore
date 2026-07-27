@@ -1,5 +1,7 @@
 **TODO**
 
+# Current Status: *SOLVED*
+
 ***PROBLEM***
 1. It will automatically shows duplicated quarter report, but reporting period is annual. Review again "Ingest tab\Revisit saved records", and fix the issue.
   - It should show reporting period: quarterly, if the uploaded pdf is quarterly report.
@@ -54,4 +56,4 @@
    - Add a warning tooltip or flag in the dashboard/statements view when `dividendPayoutRatio > 1.5`, noting that this may represent a special dividend from reserves rather than sustainable earnings distribution.
 
 8. **Dashboard Empty State When Period Filter Has No Data** *(Low — UX)*:
-   - When switching to "Quarterly" on the Dashboard toggle but there are no quarterly reports loaded for the current sector/year, the view is blank with no message. Add an explicit empty state: "No quarterly reports available for this sector. Upload quarterly condensed interim filings to enable this view."
+   - When switching to "Quarterly" on the Dashboard toggle but there are no quarterly reports loaded for the current sector/year, the view is blank with no message. Add an explicit empty state: "No quarterly reports available for this sector. Upload quarterly condensed interim filings to enable this view."
