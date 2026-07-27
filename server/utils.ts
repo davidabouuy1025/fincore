@@ -124,3 +124,59 @@ export function detectYear(text: string, defaultYear: string = "2025"): string {
 
   return defaultYear;
 }
+
+export function detectPeriod(text: string): string {
+  const normalized = text.toLowerCase();
+
+  // Look for quarter keywords
+  if (/\b(1st\s+quarter|first\s+quarter|quarter\s+1|q1)\b/i.test(normalized)) {
+    return "q1";
+  }
+  if (/\b(2nd\s+quarter|second\s+quarter|quarter\s+2|q2)\b/i.test(normalized)) {
+    return "q2";
+  }
+  if (/\b(3rd\s+quarter|third\s+quarter|quarter\s+3|q3)\b/i.test(normalized)) {
+    return "q3";
+  }
+  if (/\b(4th\s+quarter|fourth\s+quarter|quarter\s+4|q4)\b/i.test(normalized)) {
+    return "q4";
+  }
+
+  // Check for common quarterly report title endings, e.g. "three months ended"
+  if (/\bthree\s+months\s+ended\b/i.test(normalized)) {
+    return "q1";
+  }
+  if (/\bsix\s+months\s+ended\b/i.test(normalized)) {
+    return "q2";
+  }
+  if (/\bnine\s+months\s+ended\b/i.test(normalized)) {
+    return "q3";
+  }
+
+  return "annual";
+}
+
+export function detectCurrency(text: string): string {
+  const str = text.toUpperCase();
+
+  if (str.includes("MYR") || str.includes("RM") || str.includes("RINGGIT")) {
+    return "MYR";
+  }
+  if (str.includes("USD") || str.includes("DOLLAR") || str.includes("$")) {
+    return "USD";
+  }
+  if (str.includes("CNY") || str.includes("RMB") || str.includes("YUAN")) {
+    return "CNY";
+  }
+  if (str.includes("HKD")) {
+    return "HKD";
+  }
+  if (str.includes("JPY") || str.includes("YEN") || str.includes("¥")) {
+    return "JPY";
+  }
+  if (str.includes("EUR") || str.includes("EURO") || str.includes("€")) {
+    return "EUR";
+  }
+
+  return "MYR";
+}

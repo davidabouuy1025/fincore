@@ -56,11 +56,19 @@ export function calculateCore8Metrics(report: CompanyReport): Core8Metrics {
   const bonds = safeNum(bal.bondsPayable || 0);
   const totalDebt = stDebt + ltDebt + bonds;
   
+  const period = report.Metadata?.Period?.toLowerCase() || "annual";
+  const isQuarterly = ["q1", "q2", "q3", "q4"].includes(period);
+  const periodFactors: Record<string, number> = { q1: 4, q2: 2, q3: 4 / 3, q4: 1, annual: 1 };
+  const factor = periodFactors[period] ?? 1;
+
   const cashAndEquiv = safeNum(bal.cashAndEquivalents);
   const totalEquity = safeNum(bal.totalEquity);
   
   const investedCapital = totalDebt + totalEquity - cashAndEquiv;
-  const roic = investedCapital > 0 ? (nopat / investedCapital) * 100 : 0;
+  const storedROIC = safeNum(rat.roic);
+  const storedROICPercent = storedROIC !== 0 ? storedROIC * 100 : 0;
+  const computedROIC = investedCapital > 0 ? (nopat / investedCapital) * 100 * factor : 0;
+  const roic = storedROICPercent !== 0 ? storedROICPercent : computedROIC;
 
   // 5. Free Cash Flow (FCF) Margin
   const fcf = safeNum(cash.freeCashFlow) || (safeNum(cash.operatingCashFlow) - safeNum(cash.capitalExpenditure));
@@ -73,7 +81,7 @@ export function calculateCore8Metrics(report: CompanyReport): Core8Metrics {
   const netDebt = totalDebt - cashAndEquiv;
   const depreciation = safeNum(inc.depreciation || 0);
   const amortization = safeNum(inc.amortization || 0);
-  const ebitda = safeNum(inc.ebitda) || (ebit + depreciation + amortization);
+  const ebitda = (safeNum(inc.ebitda) || (ebit + depreciation + amortization)) * factor;
   const netDebtToEbitda = ebitda > 0 ? netDebt / ebitda : netDebt > 0 ? 5.0 : 0;
 
   // 8. Cash Conversion Cycle (CCC)
@@ -93,7 +101,7 @@ export function calculateCore8Metrics(report: CompanyReport): Core8Metrics {
 
   // 9. Asset Productivity (GP / Total Assets)
   const totalAssets = safeNum(bal.totalAssets);
-  const assetProductivity = totalAssets > 0 ? (gp / totalAssets) * 100 : 0;
+  const assetProductivity = totalAssets > 0 ? (gp / totalAssets) * 100 * factor : 0;
 
   // 10. CapEx to Depreciation
   const capex = safeNum(cash.capitalExpenditure);
@@ -304,7 +312,14 @@ export function calculateScoring(report: CompanyReport, sector: string): Scoring
   else if (c8.roic >= 3) qualityScore += 10;
 
   // FCF Margin (max 25 pts)
-  if (c8.fcfMargin >= 12) qualityScore += 25;
+  const cash = report.Financials.cashFlow || {};
+  const isQuarterlyReport = ["q1", "q2", "q3", "q4"].includes(report.Metadata?.Period?.toLowerCase() || "");
+  const hasNoCashFlow = isQuarterlyReport && safeNum(cash.freeCashFlow) === 0 && safeNum(cash.operatingCashFlow) === 0;
+
+  if (hasNoCashFlow) {
+    // Neutral score for condensed interim quarterly reports omitting cash flows
+    qualityScore += 15;
+  } else if (c8.fcfMargin >= 12) qualityScore += 25;
   else if (c8.fcfMargin >= 6) qualityScore += 15;
   else if (c8.fcfMargin >= 0) qualityScore += 5;
 

@@ -4,7 +4,7 @@ import {
   ExtractedFinancialPayload, 
   AnalysisOutput 
 } from "../types/index";
-import { detectCompanyName, detectSector, detectYear } from "../utils";
+import { detectCompanyName, detectSector, detectYear, detectPeriod, detectCurrency } from "../utils";
 
 export class ExtractionService {
   
@@ -12,18 +12,22 @@ export class ExtractionService {
    * Main entry point to process unstructured text into clean domain figures.
    * Matches the parser and utils logic imported and executed by server.ts.
    */
-  public processFinancials(text: string, originalFileName: string): AnalysisOutput & { suggestedYear: string; companyName: string; year: string; sector: string } {
+  public processFinancials(text: string, originalFileName: string): AnalysisOutput & { suggestedYear: string; companyName: string; year: string; sector: string; suggestedPeriod: string; suggestedCurrency: string } {
     const normalizedText = this.normalizeText(text);
 
     const suggestedCompanyName = detectCompanyName(normalizedText, originalFileName);
     const suggestedSector = detectSector(normalizedText, "TECHNOLOGY");
     const suggestedYear = detectYear(normalizedText, "2025");
+    const suggestedPeriod = detectPeriod(normalizedText);
+    const suggestedCurrency = detectCurrency(normalizedText);
     const extractedData = this.extractAllMetrics(normalizedText);
 
     return {
       suggestedCompanyName,
       suggestedSector,
       suggestedYear,
+      suggestedPeriod,
+      suggestedCurrency,
       companyName: suggestedCompanyName,
       sector: suggestedSector,
       year: suggestedYear,

@@ -66,8 +66,8 @@ export function FinCoreView({
   archive,
   loadReports
 }: FinCoreViewProps) {
-  const [activeReportIndex, setActiveReportIndex] = useState<number>(0);
-
+  const [selectedCompanyName, setSelectedCompanyName] = useState<string>("");
+  const [selectedVersionIndex, setSelectedVersionIndex] = useState<number>(0);
   const [selectedSector, setSelectedSector] = useState<string | null>(null);
 
   // Group reports by company to access peer sets
@@ -80,6 +80,43 @@ export function FinCoreView({
     });
     return groups;
   }, [reports]);
+
+  const uniqueCompanies = useMemo(() => {
+    return Array.from(new Set(reports.map((r) => r.Metadata?.CompanyName || "UNKNOWN CORP").filter(Boolean)));
+  }, [reports]);
+
+  const activeCompany = useMemo(() => {
+    if (selectedCompanyName && uniqueCompanies.includes(selectedCompanyName)) {
+      return selectedCompanyName;
+    }
+    return uniqueCompanies[0] || "";
+  }, [selectedCompanyName, uniqueCompanies]);
+
+  // Sync selected company if list updates
+  useEffect(() => {
+    if (uniqueCompanies.length > 0 && !uniqueCompanies.includes(selectedCompanyName)) {
+      setSelectedCompanyName(uniqueCompanies[0]);
+    }
+  }, [uniqueCompanies, selectedCompanyName]);
+
+  const activeCompanyReports = useMemo(() => {
+    const list = reports.filter((r) => (r.Metadata?.CompanyName || "UNKNOWN CORP") === activeCompany);
+    return [...list].sort((a, b) => {
+      const yearA = parseInt(a.Metadata?.FinancialYear || "0");
+      const yearB = parseInt(b.Metadata?.FinancialYear || "0");
+      if (yearA !== yearB) return yearB - yearA;
+
+      const qA = a.Metadata?.Period?.toLowerCase() || "annual";
+      const qB = b.Metadata?.Period?.toLowerCase() || "annual";
+      const qOrder: Record<string, number> = { annual: 0, q1: 1, q2: 2, q3: 3, q4: 4 };
+      return (qOrder[qB] || 0) - (qOrder[qA] || 0);
+    });
+  }, [reports, activeCompany]);
+
+  // Reset version selection when company changes
+  useEffect(() => {
+    setSelectedVersionIndex(0);
+  }, [activeCompany]);
 
   // Determine all sectors available in the DB
   const availableSectors = Array.from(new Set([
@@ -106,7 +143,158 @@ export function FinCoreView({
     return Array.from(latestMap.values());
   }, [reports]);
 
-  const selectedReport = latestReportsPerCompany[activeReportIndex] || latestReportsPerCompany[0];
+  const selectedReport = activeCompanyReports[selectedVersionIndex] || activeCompanyReports[0] || reports[0];
+
+  // 1. Calculations & Metrics
+  const scoring = useMemo(() => {
+    if (!selectedReport) return { companyQualityScore: 0, investmentQualityScore: 0, statusColor: "amber", recommendation: "Hold" };
+    return calculateScoring(selectedReport, sector);
+  }, [selectedReport, sector]);
+
+  const core8 = useMemo(() => {
+    if (!selectedReport) return { roic: 0, fcfMargin: 0, operatingLeverage: 0, netDebtToEbitda: 0, cashConversionCycle: 0, assetProductivity: 0, capexToDepreciation: 0, altmanZScore: 0 };
+    return calculateCore8Metrics(selectedReport);
+  }, [selectedReport]);
+
+  const sectorMetrics = useMemo(() => {
+    if (!selectedReport) return [];
+    return calculateSectorMetrics(selectedReport, sector);
+  }, [selectedReport, sector]);
+
+  const overallScoreAvg = Math.round((scoring.companyQualityScore + scoring.investmentQualityScore) / 2);
+  const getGrade = (score: number) => {
+    if (score >= 90) return "A+";
+    if (score >= 80) return "A";
+    if (score >= 70) return "B+";
+    if (score >= 60) return "B";
+    if (score >= 50) return "C";
+    return "D";
+  };
+  const overallGrade = getGrade(overallScoreAvg);
+
+  // WACC & EVA Calculations
+  const WACC = 8.5; // Standard benchmark percentage
+  const roicSpread = core8.roic - WACC;
+
+  // Calculate invested capital
+  const stDebt = useMemo(() => {
+    if (!selectedReport) return 0;
+    return safeNum(selectedReport.Financials?.balanceSheet?.shortTermDebt || selectedReport.Financials?.balanceSheet?.currentLiabilities);
+  }, [selectedReport]);
+
+  const ltDebt = useMemo(() => {
+    if (!selectedReport) return 0;
+    return safeNum(selectedReport.Financials?.balanceSheet?.longTermDebt || selectedReport.Financials?.balanceSheet?.nonCurrentLiabilities);
+  }, [selectedReport]);
+
+  const totalDebt = stDebt + ltDebt;
+
+  const totalEquity = useMemo(() => {
+    if (!selectedReport) return 0;
+    return safeNum(selectedReport.Financials?.balanceSheet?.totalEquity);
+  }, [selectedReport]);
+
+  const cashAndEquiv = useMemo(() => {
+    if (!selectedReport) return 0;
+    return safeNum(selectedReport.Financials?.balanceSheet?.cashAndEquivalents);
+  }, [selectedReport]);
+
+  const investedCapital = totalDebt + totalEquity - cashAndEquiv;
+
+  const EVA = (roicSpread * investedCapital) / 100;
+  const valueCreationStatus = roicSpread > 0 ? "Creating Value" : "Destroying Value";
+
+  // Dynamic historical ROIC spread trajectory
+  const historicalSpread = useMemo(() => {
+    if (!selectedReport) return [];
+    const sortedAsc = [...activeCompanyReports].reverse().slice(-5);
+    if (sortedAsc.length === 0) {
+      const p = selectedReport?.Metadata?.Period?.toUpperCase() || "ANNUAL";
+      const pTag = p !== "ANNUAL" ? ` ${p}` : "";
+      return [{ label: `${selectedReport?.Metadata?.FinancialYear || year}${pTag}`, spread: roicSpread }];
+    }
+    return sortedAsc.map((rep) => {
+      const repCore8 = calculateCore8Metrics(rep);
+      const p = rep.Metadata?.Period?.toUpperCase() || "ANNUAL";
+      const pTag = p !== "ANNUAL" ? ` ${p}` : "";
+      return {
+        label: `${rep.Metadata?.FinancialYear || year}${pTag}`,
+        spread: repCore8.roic - WACC,
+      };
+    });
+  }, [activeCompanyReports, roicSpread, selectedReport, year]);
+
+  // Peer Comparisons
+  const peerListWithScores = useMemo(() => {
+    if (reports.length === 0) return [];
+    return latestReportsPerCompany.map((rep) => {
+      const peerScoring = calculateScoring(rep, sector);
+      const peerCore8 = calculateCore8Metrics(rep);
+      const rev = safeNum(rep.Financials?.incomeStatement?.revenue);
+      const net = safeNum(rep.Financials?.incomeStatement?.netProfit);
+      return {
+        name: rep.Metadata?.CompanyName || "UNKNOWN CORP",
+        quality: peerScoring.companyQualityScore,
+        invest: peerScoring.investmentQualityScore,
+        roic: peerCore8.roic,
+        netMargin: rev > 0 ? (net / rev) * 100 : 0,
+        safety: peerCore8.altmanZScore,
+      };
+    });
+  }, [latestReportsPerCompany, reports, sector]);
+
+  const peerRankings = useMemo(() => {
+    if (peerListWithScores.length === 0) {
+      return { best: "None", average: "None", weakest: "None" };
+    }
+    const sorted = [...peerListWithScores].sort((a, b) => b.invest - a.invest);
+    return {
+      best: sorted[0]?.name || "None",
+      average: sorted[Math.floor(sorted.length / 2)]?.name || "None",
+      weakest: sorted[sorted.length - 1]?.name || "None",
+    };
+  }, [peerListWithScores]);
+
+  // Risks Assessment Definitions
+  const riskAssessment = useMemo(() => {
+    if (!selectedReport) {
+      return { debt: "Low", liquidity: "Low", cashFlow: "Low", sector: "Low", stability: "Low" };
+    }
+    const debtRatio = totalEquity > 0 ? totalDebt / totalEquity : 0;
+    const currentRatio = safeNum(selectedReport.Financials?.balanceSheet?.currentAssets) /
+      (safeNum(selectedReport.Financials?.balanceSheet?.currentLiabilities) || 1);
+    const fcf = safeNum(selectedReport.Financials?.cashFlow?.freeCashFlow) || 0;
+
+    return {
+      debt: debtRatio > 1.5 ? "High" : debtRatio > 0.8 ? "Moderate" : "Low",
+      liquidity: currentRatio < 1.0 ? "High" : currentRatio < 1.5 ? "Moderate" : "Low",
+      cashFlow: fcf < 0 ? "High" : fcf < 20000 ? "Moderate" : "Low",
+      sector: sector.includes("CONSTRUCT") || sector.includes("PLANTATION") ? "High" : "Moderate",
+      stability: core8.altmanZScore < 1.2 ? "High" : core8.altmanZScore < 2.9 ? "Moderate" : "Low",
+    };
+  }, [selectedReport, totalEquity, totalDebt, core8.altmanZScore, sector]);
+
+  // Institutional Recommendations
+  const recommendations = useMemo(() => {
+    if (!selectedReport) {
+      return { strengths: [], weaknesses: [], watchItems: [] };
+    }
+    const strengths: string[] = [];
+    const weaknesses: string[] = [];
+    const watchItems: string[] = [];
+
+    if (core8.roic > WACC) strengths.push("Economic Moat: ROIC exceeds WACC, proving positive shareholder value creation.");
+    else weaknesses.push("Sub-Par Returns: ROIC underperforms the cost of capital, compounding capital destruction.");
+
+    if (core8.altmanZScore >= 2.9) strengths.push("Outstanding Balance Sheet: Financial distress risk is near non-existent.");
+    else if (core8.altmanZScore < 1.2) weaknesses.push("Severe Solvency Warning: Altman Z-Score indicates distress risk bounds.");
+    else watchItems.push("Leverage Watch: Balance sheet safety resides inside the gray zone.");
+
+    if (core8.fcfMargin > 10) strengths.push("Cash Cow Profile: FCF conversion is extremely robust.");
+    else if (core8.fcfMargin < 2) weaknesses.push("Asset Intensity Leak: Cash conversion is restricted by heavy CapEx.");
+
+    return { strengths, weaknesses, watchItems };
+  }, [selectedReport, core8.roic, core8.altmanZScore, core8.fcfMargin]);
 
   const sectorsList = [
     "TECHNOLOGY",
@@ -127,14 +315,16 @@ export function FinCoreView({
   });
 
   const getSectorAvailability = (sec: string) => {
+    const cleanSec = sec.toUpperCase().replace(/\s+/g, "_");
     return archive.some(entry =>
-      entry.sectors.some(s => s.toUpperCase() === sec.toUpperCase())
+      entry.sectors.some(s => s.toUpperCase().replace(/\s+/g, "_") === cleanSec)
     );
   };
 
   const getSectorYears = (sec: string) => {
+    const cleanSec = sec.toUpperCase().replace(/\s+/g, "_");
     return archive
-      .filter(entry => entry.sectors.some(s => s.toUpperCase() === sec.toUpperCase()))
+      .filter(entry => entry.sectors.some(s => s.toUpperCase().replace(/\s+/g, "_") === cleanSec))
       .map(entry => entry.year)
       .sort((a, b) => parseInt(b) - parseInt(a));
   };
@@ -163,13 +353,13 @@ export function FinCoreView({
   };
 
   const handleSelectSector = async (sec: string) => {
-    const matchingYears = getSectorYears(sec);
-    const targetYear = matchingYears[0] || "2025";
-    await loadReports(targetYear, sec, "fincore");
     setSelectedSector(sec);
+    const matchingYears = getSectorYears(sec);
+    const targetYear = matchingYears[0] || year || "2025";
+    await loadReports(targetYear, sec, "fincore");
   };
 
-  if (!selectedSector || latestReportsPerCompany.length === 0 || reports.length === 0 || sector.toUpperCase() !== selectedSector.toUpperCase()) {
+  if (!selectedSector) {
     return (
       <motion.div
         initial={{ opacity: 0, y: 10 }}
@@ -255,111 +445,51 @@ export function FinCoreView({
 
   // Sector Toggle handler
   const handleSectorToggle = async (newSector: string) => {
-    await loadReports(year, newSector, "fincore");
     setSelectedSector(newSector);
+    const matchingYears = getSectorYears(newSector);
+    const targetYear = matchingYears[0] || year || "2025";
+    await loadReports(targetYear, newSector, "fincore");
   };
 
-  // 1. Calculations & Metrics
-  const scoring = calculateScoring(selectedReport, sector);
-  const core8 = calculateCore8Metrics(selectedReport);
-  const sectorMetrics = calculateSectorMetrics(selectedReport, sector);
+  if (!selectedReport || reports.length === 0) {
+    return (
+      <div className="space-y-8 font-sans p-6 bg-hacker-bg text-hacker-text-submain max-w-5xl mx-auto py-10">
+        <div className="flex items-center justify-between pb-2 border-b border-hacker-border/10">
+          <button
+            onClick={() => setSelectedSector(null)}
+            className="px-4 py-2 text-xs font-black border border-slate-200 dark:border-hacker-border bg-white dark:bg-hacker-card-bg rounded-xl text-slate-700 dark:text-hacker-text-main hover:border-emerald-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all cursor-pointer flex items-center gap-2 shadow-3xs"
+          >
+            <span>← Back to Sector Registry</span>
+          </button>
+          <span className="text-xs font-mono text-hacker-text-muted">
+            Selected Cohort: <strong className="text-hacker-text-accent font-black">{selectedSector.replace(/_/g, " ")}</strong>
+          </span>
+        </div>
 
-  const overallScoreAvg = Math.round((scoring.companyQualityScore + scoring.investmentQualityScore) / 2);
-  const getGrade = (score: number) => {
-    if (score >= 90) return "A+";
-    if (score >= 80) return "A";
-    if (score >= 70) return "B+";
-    if (score >= 60) return "B";
-    if (score >= 50) return "C";
-    return "D";
-  };
-  const overallGrade = getGrade(overallScoreAvg);
+        <div className="bg-white dark:bg-hacker-card-bg border border-hacker-border/40 rounded-2xl p-12 text-center shadow-3xs space-y-4 my-6">
+          <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center mx-auto">
+            <Layers className="w-6 h-6" />
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-hacker-text-main">
+              No Reports Loaded for {selectedSector.replace(/_/g, " ")}
+            </h3>
+            <p className="text-xs text-hacker-text-muted max-w-md mx-auto mt-1 font-medium">
+              There are no parsed financial statement reports in the database for sector <strong className="text-hacker-text-accent">{selectedSector.replace(/_/g, " ")}</strong>. Ingest financial filings in the Ingest tab to enable deep scoring.
+            </p>
+          </div>
+          <button
+            onClick={() => setView("upload")}
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold bg-teal-800 text-white dark:text-teal-400 hover:bg-teal-700 transition-colors cursor-pointer"
+          >
+            Go to Ingest Tab <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+    );
+  }
 
-  // WACC & EVA Calculations
-  const WACC = 8.5; // Standard benchmark percentage
-  const roicSpread = core8.roic - WACC;
 
-  // Calculate invested capital
-  const stDebt = safeNum(selectedReport.Financials.balanceSheet?.shortTermDebt || selectedReport.Financials.balanceSheet?.currentLiabilities);
-  const ltDebt = safeNum(selectedReport.Financials.balanceSheet?.longTermDebt || selectedReport.Financials.balanceSheet?.nonCurrentLiabilities);
-  const totalDebt = stDebt + ltDebt;
-  const totalEquity = safeNum(selectedReport.Financials.balanceSheet?.totalEquity);
-  const cashAndEquiv = safeNum(selectedReport.Financials.balanceSheet?.cashAndEquivalents);
-  const investedCapital = totalDebt + totalEquity - cashAndEquiv;
-
-  const EVA = (roicSpread * investedCapital) / 100;
-  const valueCreationStatus = roicSpread > 0 ? "Creating Value" : "Destroying Value";
-
-  // Mock historical trends for sparklines
-  const getHistoricalSpreadTrend = () => {
-    const spread1 = roicSpread;
-    const spread2 = roicSpread - 1.2;
-    const spread3 = roicSpread + 0.8;
-    const spread4 = roicSpread - 0.4;
-    const spread5 = roicSpread - 2.0;
-    return [spread5, spread4, spread3, spread2, spread1];
-  };
-  const historicalSpread = getHistoricalSpreadTrend();
-
-  // Peer Comparisons
-  const peerListWithScores = latestReportsPerCompany.map((rep) => {
-    const peerScoring = calculateScoring(rep, sector);
-    const peerCore8 = calculateCore8Metrics(rep);
-    const rev = safeNum(rep.Financials.incomeStatement?.revenue);
-    const net = safeNum(rep.Financials.incomeStatement?.netProfit);
-    return {
-      name: rep.Metadata?.CompanyName || "UNKNOWN CORP",
-      quality: peerScoring.companyQualityScore,
-      invest: peerScoring.investmentQualityScore,
-      roic: peerCore8.roic,
-      netMargin: rev > 0 ? (net / rev) * 100 : 0,
-      safety: peerCore8.altmanZScore,
-    };
-  });
-
-  const peerRankings = (() => {
-    const sorted = [...peerListWithScores].sort((a, b) => b.invest - a.invest);
-    return {
-      best: sorted[0]?.name || "None",
-      average: sorted[Math.floor(sorted.length / 2)]?.name || "None",
-      weakest: sorted[sorted.length - 1]?.name || "None",
-    };
-  })();
-
-  // Risks Assessment Definitions
-  const riskAssessment = (() => {
-    const debtRatio = totalEquity > 0 ? totalDebt / totalEquity : 0;
-    const currentRatio = safeNum(selectedReport.Financials.balanceSheet?.currentAssets) /
-      (safeNum(selectedReport.Financials.balanceSheet?.currentLiabilities) || 1);
-    const fcf = safeNum(selectedReport.Financials.cashFlow?.freeCashFlow) || 0;
-
-    return {
-      debt: debtRatio > 1.5 ? "High" : debtRatio > 0.8 ? "Moderate" : "Low",
-      liquidity: currentRatio < 1.0 ? "High" : currentRatio < 1.5 ? "Moderate" : "Low",
-      cashFlow: fcf < 0 ? "High" : fcf < 20000 ? "Moderate" : "Low",
-      sector: sector.includes("CONSTRUCT") || sector.includes("PLANTATION") ? "High" : "Moderate",
-      stability: core8.altmanZScore < 1.2 ? "High" : core8.altmanZScore < 2.9 ? "Moderate" : "Low",
-    };
-  })();
-
-  // Institutional Recommendations
-  const recommendations = (() => {
-    const strengths: string[] = [];
-    const weaknesses: string[] = [];
-    const watchItems: string[] = [];
-
-    if (core8.roic > WACC) strengths.push("Economic Moat: ROIC exceeds WACC, proving positive shareholder value creation.");
-    else weaknesses.push("Sub-Par Returns: ROIC underperforms the cost of capital, compounding capital destruction.");
-
-    if (core8.altmanZScore >= 2.9) strengths.push("Outstanding Balance Sheet: Financial distress risk is near non-existent.");
-    else if (core8.altmanZScore < 1.2) weaknesses.push("Severe Solvency Warning: Altman Z-Score indicates distress risk bounds.");
-    else watchItems.push("Leverage Watch: Balance sheet safety resides inside the gray zone.");
-
-    if (core8.fcfMargin > 10) strengths.push("Cash Cow Profile: FCF conversion is extremely robust.");
-    else if (core8.fcfMargin < 2) weaknesses.push("Asset Intensity Leak: Cash conversion is restricted by heavy CapEx.");
-
-    return { strengths, weaknesses, watchItems };
-  })();
 
   return (
     <div className="space-y-8 font-sans p-6 bg-hacker-bg text-hacker-text-submain">
@@ -419,25 +549,46 @@ export function FinCoreView({
             <span className="text-[10px] font-extrabold tracking-wider uppercase">FinCore™ Intelligence Portal</span>
           </div>
           <h1 className="text-xl font-black text-hacker-text-main tracking-tight">
-            Institutional Analysis Terminal (FY{selectedReport?.Metadata?.FinancialYear})
+            Institutional Analysis Terminal ({selectedReport?.Metadata?.FinancialYear}{selectedReport?.Metadata?.Period && selectedReport.Metadata.Period !== "annual" ? ` ${selectedReport.Metadata.Period.toUpperCase()}` : " Annual"})
           </h1>
         </div>
 
-        <div className="flex items-center gap-1.5 overflow-x-auto bg-slate-50 dark:bg-hacker-card-bg p-1 rounded-lg border border-hacker-border">
-          {latestReportsPerCompany.map((r, i) => (
-            <button
-              key={i}
-              onClick={() => setActiveReportIndex(i)}
-              className={cn(
-                "px-3.5 py-1.5 rounded text-xs font-black transition-all cursor-pointer whitespace-nowrap",
-                activeReportIndex === i
-                  ? "bg-teal-800 text-white shadow-2xs"
-                  : "text-hacker-text-muted hover:text-hacker-text-main"
-              )}
-            >
-              {r.Metadata.CompanyName}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-1.5 overflow-x-auto bg-slate-50 dark:bg-hacker-card-bg p-1 rounded-lg border border-hacker-border">
+            {uniqueCompanies.map((cName, i) => (
+              <button
+                key={i}
+                onClick={() => setSelectedCompanyName(cName)}
+                className={cn(
+                  "px-3.5 py-1.5 rounded text-xs font-black transition-all cursor-pointer whitespace-nowrap",
+                  activeCompany === cName
+                    ? "bg-teal-800 text-white shadow-2xs"
+                    : "text-hacker-text-muted hover:text-hacker-text-main"
+                )}
+              >
+                {cName}
+              </button>
+            ))}
+          </div>
+
+          <span className="text-[10px] font-black text-hacker-text-muted uppercase tracking-widest ml-2">Version:</span>
+          <select
+            value={selectedVersionIndex}
+            onChange={(e) => setSelectedVersionIndex(parseInt(e.target.value, 10))}
+            className="bg-white dark:bg-hacker-card-bg border border-hacker-border/40 rounded-xl px-4 py-2 text-xs font-black text-hacker-text-main focus:outline-none focus:border-hacker-green cursor-pointer shadow-3xs"
+          >
+            {activeCompanyReports.map((r, idx) => {
+              const p = r.Metadata?.Period?.toLowerCase() || "annual";
+              const label = p !== "annual" 
+                ? `${r.Metadata?.FinancialYear} ${p.toUpperCase()}`
+                : `${r.Metadata?.FinancialYear} Annual`;
+              return (
+                <option key={idx} value={idx}>
+                  {label}
+                </option>
+              );
+            })}
+          </select>
         </div>
       </div>
 
@@ -450,7 +601,7 @@ export function FinCoreView({
               Company Health Snapshot
             </h2>
             <span className="text-xs font-extrabold text-hacker-text-muted">
-              FY{selectedReport?.Metadata?.FinancialYear}
+              {selectedReport?.Metadata?.FinancialYear}{selectedReport?.Metadata?.Period && selectedReport.Metadata.Period !== "annual" ? ` ${selectedReport.Metadata.Period.toUpperCase()}` : " Annual"}
             </span>
           </div>
 
@@ -563,7 +714,7 @@ export function FinCoreView({
                 Spread Trajectory:
               </span>
               <span className="text-[10px] font-mono text-hacker-text-muted font-bold">
-                {historicalSpread.map((s) => s.toFixed(0)).join(" → ")}
+                {historicalSpread.map((item) => `${item.label}: ${item.spread.toFixed(1)}%`).join(" → ")}
               </span>
             </div>
           </div>
@@ -669,6 +820,12 @@ export function FinCoreView({
                   <p className="text-[11px] text-hacker-text-muted font-medium leading-relaxed mt-2 italic font-mono">
                     {item.desc}
                   </p>
+                  {item.name.includes("Free Cash Flow") && (["q1", "q2", "q3", "q4"].includes(selectedReport?.Metadata?.Period?.toLowerCase() || "")) && safeNum(selectedReport?.Financials?.cashFlow?.freeCashFlow) === 0 && safeNum(selectedReport?.Financials?.cashFlow?.operatingCashFlow) === 0 && (
+                    <div className="flex items-center gap-1.5 mt-2.5 px-3 py-1.5 bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 rounded-lg text-[10px] font-bold font-sans">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0 text-amber-500" />
+                      <span>Cash flow statement omitted in condensed interim quarterly report. Quality score uses neutral weighting.</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Slider visual track representation of interpretation band */}
@@ -778,11 +935,11 @@ export function FinCoreView({
                   key={idx}
                   className={cn(
                     "hover:bg-slate-50 dark:hover:bg-hacker-card-hover/20",
-                    p.name === selectedReport.Metadata.CompanyName && "bg-teal-500/5 font-extrabold"
+                    p.name === selectedReport?.Metadata?.CompanyName && "bg-teal-500/5 font-extrabold"
                   )}
                 >
                   <td className="px-6 py-3.5 font-bold text-hacker-text-main uppercase">
-                    {p.name} {p.name === selectedReport.Metadata.CompanyName && "⭐"}
+                    {p.name} {p.name === selectedReport?.Metadata?.CompanyName && "⭐"}
                   </td>
                   <td className="px-6 py-3.5 text-center text-hacker-text-submain">
                     {p.quality}/100

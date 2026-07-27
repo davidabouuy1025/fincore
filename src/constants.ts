@@ -61,6 +61,7 @@ export const FIELD_LABELS: Record<string, string> = {
   financingCashFlow: "Financing Cash Flow",
   freeCashFlow: "Free Cash Flow",
   capitalExpenditure: "Capital Expenditure",
+  dividendsPaid: "Dividends Paid",
 
   // Ratios
   roe: "Return on Equity (ROE)",
@@ -167,6 +168,7 @@ export const FINANCIAL_DICTIONARY: Record<string, { category: string }> = {
   financingCashFlow: { category: "cashFlow" },
   freeCashFlow: { category: "cashFlow" },
   capitalExpenditure: { category: "cashFlow" },
+  dividendsPaid: { category: "cashFlow" },
 
   roe: { category: "ratios" },
   roa: { category: "ratios" },
@@ -205,7 +207,7 @@ export const FINANCIAL_DICTIONARY: Record<string, { category: string }> = {
 
   enterpriseValue: { category: "advanced" },
   evEbitda: { category: "advanced" },
-  fcfYield: { category: "advanced text-right" },
+  fcfYield: { category: "advanced" },
   eva: { category: "advanced" },
   workingCapital: { category: "advanced" },
   netWorkingCapital: { category: "advanced" },

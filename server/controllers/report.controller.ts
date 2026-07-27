@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import path from "path";
 import fs from "fs";
 import { performOCR, performPdfOCR, toPureMarkdown } from "../parser";
+import { logger } from "../logger";
 
 // Placeholder interfaces for injected services
 export interface IOcrService {
@@ -13,12 +14,15 @@ export interface IExtractionService {
     suggestedCompanyName: string;
     suggestedSector: string;
     suggestedYear: string;
+    suggestedPeriod: string;
+    suggestedCurrency: string;
     companyName: string;
     year: string;
     sector: string;
     extractedData: any;
   };
   extractedDataToFinancials(extractedData: any): Record<string, Record<string, string | null>>;
+  createEmptyExtractedData(): any;
 }
 
 export interface IStorageService {
@@ -55,13 +59,36 @@ export class ReportController {
 
       const parsed = [];
       const selectedPages = req.body.selectedPages || "";
+      const useAi = req.body.useAi === "true";
 
       for (const file of files) {
         // 1. Process files via OCR Layer
         const { text, docType } = await this.ocrService.extractRawText(file, selectedPages);
 
         // 2. Pass textual output to extraction analysis engine
-        const analysis = this.extractionService.processFinancials(text, file.originalname);
+        let analysis = this.extractionService.processFinancials(text, file.originalname);
+
+        // 3. Optional: Perform AI-assisted extraction
+        if (useAi) {
+          try {
+            const aiData = await this.aiService.extractFinancialsWithGemini(text);
+            const emptyData = this.extractionService.createEmptyExtractedData();
+            for (const category of Object.keys(emptyData)) {
+              emptyData[category] = {};
+              const categoryValues = aiData[category] || {};
+              for (const [fieldId, val] of Object.entries(categoryValues)) {
+                emptyData[category][fieldId] = {
+                  value: val !== null ? String(val) : null,
+                  confidence: "high",
+                  source: "AI Model Extraction"
+                };
+              }
+            }
+            analysis.extractedData = emptyData;
+          } catch (aiErr) {
+            console.error("[WARN] Gemini parsing failed, falling back to regex rules:", aiErr);
+          }
+        }
 
         parsed.push({
           fileId: file.filename,
@@ -75,12 +102,12 @@ export class ReportController {
           rawTextLength: text.length,
         });
 
-        console.log(`[PARSED] ${file.originalname} → ${analysis.suggestedCompanyName} (${docType})`);
+        logger.info(`[PARSED] ${file.originalname} → ${analysis.suggestedCompanyName} (${docType})`);
       }
 
       return res.json({ success: true, parsed });
     } catch (err: any) {
-      console.error("[Controller Error] Ingestion breakdown:", err);
+      logger.error("[Controller Error] Ingestion breakdown:", err);
       return res.status(500).json({ error: err.message });
     }
   };

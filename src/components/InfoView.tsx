@@ -51,9 +51,9 @@ const FEATURES = [
 ];
 
 const WHATS_NEW = [
-  { date: "This week", title: "Dark mode support", desc: "Switch between light and dark themes instantly with the new toggle." },
-  { date: "Last update", title: "Faster AI scoring engine", desc: "FinCore scoring now runs up to 3x faster on large document sets." },
-  { date: "Recent", title: "Expanded news coverage", desc: "Market intelligence now pulls from more sources for broader context." },
+  { date: "New Feature", title: "Quarterly Report Analysis & Ingestion", desc: "Ingest and analyze quarterly reports (Q1-Q4) alongside annual statements. Switch views and analyze quarterly trajectories across all trend graphs, peer comparison matrices, and FinCore pages." },
+  { date: "Last update", title: "Dark mode support", desc: "Switch between light and dark themes instantly with the new toggle." },
+  { date: "Recent", title: "Faster AI scoring engine", desc: "FinCore scoring now runs up to 3x faster on large document sets." },
 ];
 
 interface LetterProps {

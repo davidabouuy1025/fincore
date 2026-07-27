@@ -17,13 +17,18 @@ export interface ParsedDocument {
   companyName: string;
   isExpanded: boolean;
   year?: string;
+  period?: string;
+  currency?: string;
   sector?: string;
   selectedPages?: string;
+  suggestedPeriod?: string;
+  suggestedCurrency?: string;
 }
 
 export interface Metadata {
   CompanyName: string;
   FinancialYear: string;
+  Period?: string;
   Sector: string;
   Currency: string;
   OriginalFileName?: string;

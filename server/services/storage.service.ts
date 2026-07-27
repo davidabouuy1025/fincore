@@ -38,9 +38,9 @@ export class StorageService implements IStorageService {
    * Marshals report snapshots into standardized corporate flat-file XML models
    */
   public async saveReport(report: any, defaultYear: string, defaultSector: string): Promise<any> {
-    let { companyName, financials, storedFileName, originalFileName, docType, selectedPages } = report;
-    const reportYear = report.year || defaultYear;
-    const reportSector = report.sector || defaultSector;
+    let { companyName, financials, storedFileName, originalFileName, docType, selectedPages, period, currency } = report;
+    const reportYear = String(report.year || defaultYear).trim();
+    const reportSector = String(report.sector || defaultSector).trim().toUpperCase().replace(/\s+/g, "_");
     const pureMarkdown = report.markdown?.pureMarkdown || report.Markdown?.pureMarkdown || report.pureMarkdown || "";
     companyName = toTitleCase(companyName || "Unknown Company");
 
@@ -76,7 +76,10 @@ export class StorageService implements IStorageService {
     // Rename the physical uploaded PDFs to COMPANY_YEAR.pdf, COMPANY_YEAR_2.pdf, etc.
     const cleanCompany = companyName.toUpperCase().replace(/[^A-Z0-9]/g, "_").replace(/_+/g, "_").replace(/(^_|_$)/g, "");
     const companyBase = cleanCompany || "COMPANY";
-    const baseName = `${companyBase}_${reportYear}`;
+    let baseName = `${companyBase}_${reportYear}`;
+    if (period && period.toLowerCase() !== "annual") {
+      baseName = `${companyBase}_${reportYear}_${period.toUpperCase()}`;
+    }
 
     const updatedStoredFiles: string[] = [];
     const updatedOriginalFiles: string[] = [];
@@ -122,10 +125,22 @@ export class StorageService implements IStorageService {
         Metadata: {
           CompanyName: companyName,
           FinancialYear: reportYear,
+          Period: period || "annual",
           Sector: reportSector,
           OriginalFileName: originalFilesArray.length > 0 ? (originalFilesArray.length === 1 ? originalFilesArray[0] : originalFilesArray) : originalFileName,
           StoredFileName: storedFilesArray.length > 0 ? (storedFilesArray.length === 1 ? storedFilesArray[0] : storedFilesArray) : storedFileName,
-          Currency: "MYR '000",
+          Currency: (function(raw: any): string {
+            if (!raw) return "MYR";
+            const str = String(raw).trim().toUpperCase();
+            if (str.includes("MYR") || str.includes("RM") || str.includes("RINGGIT")) return "MYR";
+            if (str.includes("USD") || str.includes("DOLLAR") || str.includes("$")) return "USD";
+            if (str.includes("CNY") || str.includes("RMB") || str.includes("YUAN")) return "CNY";
+            if (str.includes("HKD")) return "HKD";
+            if (str.includes("JPY") || str.includes("YEN") || str.includes("¥")) return "JPY";
+            if (str.includes("EUR") || str.includes("EURO") || str.includes("€")) return "EUR";
+            const clean = str.replace(/[^A-Z]/g, "").slice(0, 3);
+            return clean || "MYR";
+          })(currency),
           DocType: docType,
           ProcessedAt: new Date().toISOString(),
           SelectedPages: selectedPages || "",
@@ -189,11 +204,37 @@ export class StorageService implements IStorageService {
   }
 
   /**
+   * Helper to locate sector directory flexibly (handles spaces vs underscores, casing)
+   */
+  private findSectorDir(year: string, sector: string): string | null {
+    const yearDir = path.join(this.dbRoot, year);
+    if (!fs.existsSync(yearDir)) return null;
+
+    const cleanTarget = String(sector || "").trim().toUpperCase().replace(/\s+/g, "_");
+    
+    // Check exact match first
+    const exact = path.join(yearDir, cleanTarget);
+    if (fs.existsSync(exact)) return exact;
+
+    // Search directory entries
+    const entries = fs.readdirSync(yearDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        const normEntry = entry.name.toUpperCase().replace(/\s+/g, "_");
+        if (normEntry === cleanTarget) {
+          return path.join(yearDir, entry.name);
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
    * Reconstructs an array of structured reports matching criteria
    */
   public getReportsByYearAndSector(year: string, sector: string): any[] {
-    const sectorPath = path.join(this.dbRoot, year, sector);
-    if (!fs.existsSync(sectorPath)) return [];
+    const sectorPath = this.findSectorDir(year, sector);
+    if (!sectorPath) return [];
 
     const files = fs.readdirSync(sectorPath).filter((f) => f.endsWith(".xml"));
 
@@ -220,9 +261,9 @@ export class StorageService implements IStorageService {
 
     for (let i = 0; i < 5; i++) {
       const targetY = String(startYear - i);
-      const sectorPath = path.join(this.dbRoot, targetY, sector);
+      const sectorPath = this.findSectorDir(targetY, sector);
 
-      if (fs.existsSync(sectorPath)) {
+      if (sectorPath && fs.existsSync(sectorPath)) {
         const files = fs.readdirSync(sectorPath).filter((f) => f.endsWith(".xml"));
         for (const file of files) {
           try {
