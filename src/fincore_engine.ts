@@ -66,7 +66,7 @@ export function calculateCore8Metrics(report: CompanyReport): Core8Metrics {
   
   const investedCapital = totalDebt + totalEquity - cashAndEquiv;
   const storedROIC = safeNum(rat.roic);
-  const storedROICPercent = storedROIC !== 0 ? (storedROIC < 1 && storedROIC > -1 ? storedROIC * 100 : storedROIC) : 0;
+  const storedROICPercent = storedROIC !== 0 ? storedROIC * 100 : 0;
   const computedROIC = investedCapital > 0 ? (nopat / investedCapital) * 100 * factor : 0;
   const roic = storedROICPercent !== 0 ? storedROICPercent : computedROIC;
 

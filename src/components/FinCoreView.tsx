@@ -330,12 +330,21 @@ export function FinCoreView({
   // Dynamic historical ROIC spread trajectory
   const historicalSpread = useMemo(() => {
     const sortedAsc = [...activeCompanyReports].reverse().slice(-5);
-    if (sortedAsc.length === 0) return [roicSpread];
+    if (sortedAsc.length === 0) {
+      const p = selectedReport?.Metadata?.Period?.toUpperCase() || "ANNUAL";
+      const pTag = p !== "ANNUAL" ? ` ${p}` : "";
+      return [{ label: `${selectedReport?.Metadata?.FinancialYear || year}${pTag}`, spread: roicSpread }];
+    }
     return sortedAsc.map((rep) => {
       const repCore8 = calculateCore8Metrics(rep);
-      return repCore8.roic - WACC;
+      const p = rep.Metadata?.Period?.toUpperCase() || "ANNUAL";
+      const pTag = p !== "ANNUAL" ? ` ${p}` : "";
+      return {
+        label: `${rep.Metadata?.FinancialYear || year}${pTag}`,
+        spread: repCore8.roic - WACC,
+      };
     });
-  }, [activeCompanyReports, roicSpread]);
+  }, [activeCompanyReports, roicSpread, selectedReport, year]);
 
   // Peer Comparisons
   const peerListWithScores = latestReportsPerCompany.map((rep) => {
@@ -620,7 +629,7 @@ export function FinCoreView({
                 Spread Trajectory:
               </span>
               <span className="text-[10px] font-mono text-hacker-text-muted font-bold">
-                {historicalSpread.map((s) => `${s.toFixed(1)}%`).join(" → ")}
+                {historicalSpread.map((item) => `${item.label}: ${item.spread.toFixed(1)}%`).join(" → ")}
               </span>
             </div>
           </div>
