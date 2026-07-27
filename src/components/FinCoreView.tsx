@@ -145,6 +145,157 @@ export function FinCoreView({
 
   const selectedReport = activeCompanyReports[selectedVersionIndex] || activeCompanyReports[0] || reports[0];
 
+  // 1. Calculations & Metrics
+  const scoring = useMemo(() => {
+    if (!selectedReport) return { companyQualityScore: 0, investmentQualityScore: 0, statusColor: "amber", recommendation: "Hold" };
+    return calculateScoring(selectedReport, sector);
+  }, [selectedReport, sector]);
+
+  const core8 = useMemo(() => {
+    if (!selectedReport) return { roic: 0, fcfMargin: 0, operatingLeverage: 0, netDebtToEbitda: 0, cashConversionCycle: 0, assetProductivity: 0, capexToDepreciation: 0, altmanZScore: 0 };
+    return calculateCore8Metrics(selectedReport);
+  }, [selectedReport]);
+
+  const sectorMetrics = useMemo(() => {
+    if (!selectedReport) return [];
+    return calculateSectorMetrics(selectedReport, sector);
+  }, [selectedReport, sector]);
+
+  const overallScoreAvg = Math.round((scoring.companyQualityScore + scoring.investmentQualityScore) / 2);
+  const getGrade = (score: number) => {
+    if (score >= 90) return "A+";
+    if (score >= 80) return "A";
+    if (score >= 70) return "B+";
+    if (score >= 60) return "B";
+    if (score >= 50) return "C";
+    return "D";
+  };
+  const overallGrade = getGrade(overallScoreAvg);
+
+  // WACC & EVA Calculations
+  const WACC = 8.5; // Standard benchmark percentage
+  const roicSpread = core8.roic - WACC;
+
+  // Calculate invested capital
+  const stDebt = useMemo(() => {
+    if (!selectedReport) return 0;
+    return safeNum(selectedReport.Financials?.balanceSheet?.shortTermDebt || selectedReport.Financials?.balanceSheet?.currentLiabilities);
+  }, [selectedReport]);
+
+  const ltDebt = useMemo(() => {
+    if (!selectedReport) return 0;
+    return safeNum(selectedReport.Financials?.balanceSheet?.longTermDebt || selectedReport.Financials?.balanceSheet?.nonCurrentLiabilities);
+  }, [selectedReport]);
+
+  const totalDebt = stDebt + ltDebt;
+
+  const totalEquity = useMemo(() => {
+    if (!selectedReport) return 0;
+    return safeNum(selectedReport.Financials?.balanceSheet?.totalEquity);
+  }, [selectedReport]);
+
+  const cashAndEquiv = useMemo(() => {
+    if (!selectedReport) return 0;
+    return safeNum(selectedReport.Financials?.balanceSheet?.cashAndEquivalents);
+  }, [selectedReport]);
+
+  const investedCapital = totalDebt + totalEquity - cashAndEquiv;
+
+  const EVA = (roicSpread * investedCapital) / 100;
+  const valueCreationStatus = roicSpread > 0 ? "Creating Value" : "Destroying Value";
+
+  // Dynamic historical ROIC spread trajectory
+  const historicalSpread = useMemo(() => {
+    if (!selectedReport) return [];
+    const sortedAsc = [...activeCompanyReports].reverse().slice(-5);
+    if (sortedAsc.length === 0) {
+      const p = selectedReport?.Metadata?.Period?.toUpperCase() || "ANNUAL";
+      const pTag = p !== "ANNUAL" ? ` ${p}` : "";
+      return [{ label: `${selectedReport?.Metadata?.FinancialYear || year}${pTag}`, spread: roicSpread }];
+    }
+    return sortedAsc.map((rep) => {
+      const repCore8 = calculateCore8Metrics(rep);
+      const p = rep.Metadata?.Period?.toUpperCase() || "ANNUAL";
+      const pTag = p !== "ANNUAL" ? ` ${p}` : "";
+      return {
+        label: `${rep.Metadata?.FinancialYear || year}${pTag}`,
+        spread: repCore8.roic - WACC,
+      };
+    });
+  }, [activeCompanyReports, roicSpread, selectedReport, year]);
+
+  // Peer Comparisons
+  const peerListWithScores = useMemo(() => {
+    if (reports.length === 0) return [];
+    return latestReportsPerCompany.map((rep) => {
+      const peerScoring = calculateScoring(rep, sector);
+      const peerCore8 = calculateCore8Metrics(rep);
+      const rev = safeNum(rep.Financials?.incomeStatement?.revenue);
+      const net = safeNum(rep.Financials?.incomeStatement?.netProfit);
+      return {
+        name: rep.Metadata?.CompanyName || "UNKNOWN CORP",
+        quality: peerScoring.companyQualityScore,
+        invest: peerScoring.investmentQualityScore,
+        roic: peerCore8.roic,
+        netMargin: rev > 0 ? (net / rev) * 100 : 0,
+        safety: peerCore8.altmanZScore,
+      };
+    });
+  }, [latestReportsPerCompany, reports, sector]);
+
+  const peerRankings = useMemo(() => {
+    if (peerListWithScores.length === 0) {
+      return { best: "None", average: "None", weakest: "None" };
+    }
+    const sorted = [...peerListWithScores].sort((a, b) => b.invest - a.invest);
+    return {
+      best: sorted[0]?.name || "None",
+      average: sorted[Math.floor(sorted.length / 2)]?.name || "None",
+      weakest: sorted[sorted.length - 1]?.name || "None",
+    };
+  }, [peerListWithScores]);
+
+  // Risks Assessment Definitions
+  const riskAssessment = useMemo(() => {
+    if (!selectedReport) {
+      return { debt: "Low", liquidity: "Low", cashFlow: "Low", sector: "Low", stability: "Low" };
+    }
+    const debtRatio = totalEquity > 0 ? totalDebt / totalEquity : 0;
+    const currentRatio = safeNum(selectedReport.Financials?.balanceSheet?.currentAssets) /
+      (safeNum(selectedReport.Financials?.balanceSheet?.currentLiabilities) || 1);
+    const fcf = safeNum(selectedReport.Financials?.cashFlow?.freeCashFlow) || 0;
+
+    return {
+      debt: debtRatio > 1.5 ? "High" : debtRatio > 0.8 ? "Moderate" : "Low",
+      liquidity: currentRatio < 1.0 ? "High" : currentRatio < 1.5 ? "Moderate" : "Low",
+      cashFlow: fcf < 0 ? "High" : fcf < 20000 ? "Moderate" : "Low",
+      sector: sector.includes("CONSTRUCT") || sector.includes("PLANTATION") ? "High" : "Moderate",
+      stability: core8.altmanZScore < 1.2 ? "High" : core8.altmanZScore < 2.9 ? "Moderate" : "Low",
+    };
+  }, [selectedReport, totalEquity, totalDebt, core8.altmanZScore, sector]);
+
+  // Institutional Recommendations
+  const recommendations = useMemo(() => {
+    if (!selectedReport) {
+      return { strengths: [], weaknesses: [], watchItems: [] };
+    }
+    const strengths: string[] = [];
+    const weaknesses: string[] = [];
+    const watchItems: string[] = [];
+
+    if (core8.roic > WACC) strengths.push("Economic Moat: ROIC exceeds WACC, proving positive shareholder value creation.");
+    else weaknesses.push("Sub-Par Returns: ROIC underperforms the cost of capital, compounding capital destruction.");
+
+    if (core8.altmanZScore >= 2.9) strengths.push("Outstanding Balance Sheet: Financial distress risk is near non-existent.");
+    else if (core8.altmanZScore < 1.2) weaknesses.push("Severe Solvency Warning: Altman Z-Score indicates distress risk bounds.");
+    else watchItems.push("Leverage Watch: Balance sheet safety resides inside the gray zone.");
+
+    if (core8.fcfMargin > 10) strengths.push("Cash Cow Profile: FCF conversion is extremely robust.");
+    else if (core8.fcfMargin < 2) weaknesses.push("Asset Intensity Leak: Cash conversion is restricted by heavy CapEx.");
+
+    return { strengths, weaknesses, watchItems };
+  }, [selectedReport, core8.roic, core8.altmanZScore, core8.fcfMargin]);
+
   const sectorsList = [
     "TECHNOLOGY",
     "PLANTATION",
@@ -338,115 +489,7 @@ export function FinCoreView({
     );
   }
 
-  // 1. Calculations & Metrics
-  const scoring = calculateScoring(selectedReport, sector);
-  const core8 = calculateCore8Metrics(selectedReport);
-  const sectorMetrics = calculateSectorMetrics(selectedReport, sector);
 
-  const overallScoreAvg = Math.round((scoring.companyQualityScore + scoring.investmentQualityScore) / 2);
-  const getGrade = (score: number) => {
-    if (score >= 90) return "A+";
-    if (score >= 80) return "A";
-    if (score >= 70) return "B+";
-    if (score >= 60) return "B";
-    if (score >= 50) return "C";
-    return "D";
-  };
-  const overallGrade = getGrade(overallScoreAvg);
-
-  // WACC & EVA Calculations
-  const WACC = 8.5; // Standard benchmark percentage
-  const roicSpread = core8.roic - WACC;
-
-  // Calculate invested capital
-  const stDebt = safeNum(selectedReport.Financials.balanceSheet?.shortTermDebt || selectedReport.Financials.balanceSheet?.currentLiabilities);
-  const ltDebt = safeNum(selectedReport.Financials.balanceSheet?.longTermDebt || selectedReport.Financials.balanceSheet?.nonCurrentLiabilities);
-  const totalDebt = stDebt + ltDebt;
-  const totalEquity = safeNum(selectedReport.Financials.balanceSheet?.totalEquity);
-  const cashAndEquiv = safeNum(selectedReport.Financials.balanceSheet?.cashAndEquivalents);
-  const investedCapital = totalDebt + totalEquity - cashAndEquiv;
-
-  const EVA = (roicSpread * investedCapital) / 100;
-  const valueCreationStatus = roicSpread > 0 ? "Creating Value" : "Destroying Value";
-
-  // Dynamic historical ROIC spread trajectory
-  const historicalSpread = useMemo(() => {
-    const sortedAsc = [...activeCompanyReports].reverse().slice(-5);
-    if (sortedAsc.length === 0) {
-      const p = selectedReport?.Metadata?.Period?.toUpperCase() || "ANNUAL";
-      const pTag = p !== "ANNUAL" ? ` ${p}` : "";
-      return [{ label: `${selectedReport?.Metadata?.FinancialYear || year}${pTag}`, spread: roicSpread }];
-    }
-    return sortedAsc.map((rep) => {
-      const repCore8 = calculateCore8Metrics(rep);
-      const p = rep.Metadata?.Period?.toUpperCase() || "ANNUAL";
-      const pTag = p !== "ANNUAL" ? ` ${p}` : "";
-      return {
-        label: `${rep.Metadata?.FinancialYear || year}${pTag}`,
-        spread: repCore8.roic - WACC,
-      };
-    });
-  }, [activeCompanyReports, roicSpread, selectedReport, year]);
-
-  // Peer Comparisons
-  const peerListWithScores = latestReportsPerCompany.map((rep) => {
-    const peerScoring = calculateScoring(rep, sector);
-    const peerCore8 = calculateCore8Metrics(rep);
-    const rev = safeNum(rep.Financials.incomeStatement?.revenue);
-    const net = safeNum(rep.Financials.incomeStatement?.netProfit);
-    return {
-      name: rep.Metadata?.CompanyName || "UNKNOWN CORP",
-      quality: peerScoring.companyQualityScore,
-      invest: peerScoring.investmentQualityScore,
-      roic: peerCore8.roic,
-      netMargin: rev > 0 ? (net / rev) * 100 : 0,
-      safety: peerCore8.altmanZScore,
-    };
-  });
-
-  const peerRankings = (() => {
-    const sorted = [...peerListWithScores].sort((a, b) => b.invest - a.invest);
-    return {
-      best: sorted[0]?.name || "None",
-      average: sorted[Math.floor(sorted.length / 2)]?.name || "None",
-      weakest: sorted[sorted.length - 1]?.name || "None",
-    };
-  })();
-
-  // Risks Assessment Definitions
-  const riskAssessment = (() => {
-    const debtRatio = totalEquity > 0 ? totalDebt / totalEquity : 0;
-    const currentRatio = safeNum(selectedReport.Financials.balanceSheet?.currentAssets) /
-      (safeNum(selectedReport.Financials.balanceSheet?.currentLiabilities) || 1);
-    const fcf = safeNum(selectedReport.Financials.cashFlow?.freeCashFlow) || 0;
-
-    return {
-      debt: debtRatio > 1.5 ? "High" : debtRatio > 0.8 ? "Moderate" : "Low",
-      liquidity: currentRatio < 1.0 ? "High" : currentRatio < 1.5 ? "Moderate" : "Low",
-      cashFlow: fcf < 0 ? "High" : fcf < 20000 ? "Moderate" : "Low",
-      sector: sector.includes("CONSTRUCT") || sector.includes("PLANTATION") ? "High" : "Moderate",
-      stability: core8.altmanZScore < 1.2 ? "High" : core8.altmanZScore < 2.9 ? "Moderate" : "Low",
-    };
-  })();
-
-  // Institutional Recommendations
-  const recommendations = (() => {
-    const strengths: string[] = [];
-    const weaknesses: string[] = [];
-    const watchItems: string[] = [];
-
-    if (core8.roic > WACC) strengths.push("Economic Moat: ROIC exceeds WACC, proving positive shareholder value creation.");
-    else weaknesses.push("Sub-Par Returns: ROIC underperforms the cost of capital, compounding capital destruction.");
-
-    if (core8.altmanZScore >= 2.9) strengths.push("Outstanding Balance Sheet: Financial distress risk is near non-existent.");
-    else if (core8.altmanZScore < 1.2) weaknesses.push("Severe Solvency Warning: Altman Z-Score indicates distress risk bounds.");
-    else watchItems.push("Leverage Watch: Balance sheet safety resides inside the gray zone.");
-
-    if (core8.fcfMargin > 10) strengths.push("Cash Cow Profile: FCF conversion is extremely robust.");
-    else if (core8.fcfMargin < 2) weaknesses.push("Asset Intensity Leak: Cash conversion is restricted by heavy CapEx.");
-
-    return { strengths, weaknesses, watchItems };
-  })();
 
   return (
     <div className="space-y-8 font-sans p-6 bg-hacker-bg text-hacker-text-submain">
