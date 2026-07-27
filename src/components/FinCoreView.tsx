@@ -200,13 +200,13 @@ export function FinCoreView({
   };
 
   const handleSelectSector = async (sec: string) => {
-    const matchingYears = getSectorYears(sec);
-    const targetYear = matchingYears[0] || "2025";
-    await loadReports(targetYear, sec, "fincore");
     setSelectedSector(sec);
+    const matchingYears = getSectorYears(sec);
+    const targetYear = matchingYears[0] || year || "2025";
+    await loadReports(targetYear, sec, "fincore");
   };
 
-  if (!selectedSector || latestReportsPerCompany.length === 0 || reports.length === 0 || sector.toUpperCase() !== selectedSector.toUpperCase()) {
+  if (!selectedSector) {
     return (
       <motion.div
         initial={{ opacity: 0, y: 10 }}
@@ -292,9 +292,49 @@ export function FinCoreView({
 
   // Sector Toggle handler
   const handleSectorToggle = async (newSector: string) => {
-    await loadReports(year, newSector, "fincore");
     setSelectedSector(newSector);
+    const matchingYears = getSectorYears(newSector);
+    const targetYear = matchingYears[0] || year || "2025";
+    await loadReports(targetYear, newSector, "fincore");
   };
+
+  if (!selectedReport || reports.length === 0) {
+    return (
+      <div className="space-y-8 font-sans p-6 bg-hacker-bg text-hacker-text-submain max-w-5xl mx-auto py-10">
+        <div className="flex items-center justify-between pb-2 border-b border-hacker-border/10">
+          <button
+            onClick={() => setSelectedSector(null)}
+            className="px-4 py-2 text-xs font-black border border-slate-200 dark:border-hacker-border bg-white dark:bg-hacker-card-bg rounded-xl text-slate-700 dark:text-hacker-text-main hover:border-emerald-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all cursor-pointer flex items-center gap-2 shadow-3xs"
+          >
+            <span>← Back to Sector Registry</span>
+          </button>
+          <span className="text-xs font-mono text-hacker-text-muted">
+            Selected Cohort: <strong className="text-hacker-text-accent font-black">{selectedSector.replace(/_/g, " ")}</strong>
+          </span>
+        </div>
+
+        <div className="bg-white dark:bg-hacker-card-bg border border-hacker-border/40 rounded-2xl p-12 text-center shadow-3xs space-y-4 my-6">
+          <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center mx-auto">
+            <Layers className="w-6 h-6" />
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-hacker-text-main">
+              No Reports Loaded for {selectedSector.replace(/_/g, " ")}
+            </h3>
+            <p className="text-xs text-hacker-text-muted max-w-md mx-auto mt-1 font-medium">
+              There are no parsed financial statement reports in the database for sector <strong className="text-hacker-text-accent">{selectedSector.replace(/_/g, " ")}</strong>. Ingest financial filings in the Ingest tab to enable deep scoring.
+            </p>
+          </div>
+          <button
+            onClick={() => setView("upload")}
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold bg-teal-800 text-white dark:text-teal-400 hover:bg-teal-700 transition-colors cursor-pointer"
+          >
+            Go to Ingest Tab <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // 1. Calculations & Metrics
   const scoring = calculateScoring(selectedReport, sector);
