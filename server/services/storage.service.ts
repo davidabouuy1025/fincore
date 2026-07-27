@@ -39,8 +39,8 @@ export class StorageService implements IStorageService {
    */
   public async saveReport(report: any, defaultYear: string, defaultSector: string): Promise<any> {
     let { companyName, financials, storedFileName, originalFileName, docType, selectedPages, period, currency } = report;
-    const reportYear = report.year || defaultYear;
-    const reportSector = report.sector || defaultSector;
+    const reportYear = String(report.year || defaultYear).trim();
+    const reportSector = String(report.sector || defaultSector).trim().toUpperCase().replace(/\s+/g, "_");
     const pureMarkdown = report.markdown?.pureMarkdown || report.Markdown?.pureMarkdown || report.pureMarkdown || "";
     companyName = toTitleCase(companyName || "Unknown Company");
 
@@ -204,11 +204,37 @@ export class StorageService implements IStorageService {
   }
 
   /**
+   * Helper to locate sector directory flexibly (handles spaces vs underscores, casing)
+   */
+  private findSectorDir(year: string, sector: string): string | null {
+    const yearDir = path.join(this.dbRoot, year);
+    if (!fs.existsSync(yearDir)) return null;
+
+    const cleanTarget = String(sector || "").trim().toUpperCase().replace(/\s+/g, "_");
+    
+    // Check exact match first
+    const exact = path.join(yearDir, cleanTarget);
+    if (fs.existsSync(exact)) return exact;
+
+    // Search directory entries
+    const entries = fs.readdirSync(yearDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        const normEntry = entry.name.toUpperCase().replace(/\s+/g, "_");
+        if (normEntry === cleanTarget) {
+          return path.join(yearDir, entry.name);
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
    * Reconstructs an array of structured reports matching criteria
    */
   public getReportsByYearAndSector(year: string, sector: string): any[] {
-    const sectorPath = path.join(this.dbRoot, year, sector);
-    if (!fs.existsSync(sectorPath)) return [];
+    const sectorPath = this.findSectorDir(year, sector);
+    if (!sectorPath) return [];
 
     const files = fs.readdirSync(sectorPath).filter((f) => f.endsWith(".xml"));
 
@@ -235,9 +261,9 @@ export class StorageService implements IStorageService {
 
     for (let i = 0; i < 5; i++) {
       const targetY = String(startYear - i);
-      const sectorPath = path.join(this.dbRoot, targetY, sector);
+      const sectorPath = this.findSectorDir(targetY, sector);
 
-      if (fs.existsSync(sectorPath)) {
+      if (sectorPath && fs.existsSync(sectorPath)) {
         const files = fs.readdirSync(sectorPath).filter((f) => f.endsWith(".xml"));
         for (const file of files) {
           try {
