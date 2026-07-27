@@ -1736,7 +1736,7 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
                   <button
                     onClick={handleMarkdownEverything}
                     disabled={!mdFile || isConvertingToMd}
-                    className="w-full mt-4 bg-emerald-900 dark:bg-slate-400 text-white dark:text-white hover:bg-emerale-500 hover:shadow-lg font-black py-4 rounded-xl text-xs tracking-[0.25em] flex items-center justify-center gap-3 transition-all disabled:opacity-40 disabled:cursor-not-allowed uppercase cursor-pointer"
+                    className="w-full mt-4 bg-teal-900 dark:bg-emerald-500 text-white dark:text-black hover:bg-emerald-800 dark:hover:bg-emerald-400 hover:shadow-lg font-black py-4 rounded-xl text-xs tracking-[0.25em] flex items-center justify-center gap-3 transition-all disabled:opacity-40 disabled:cursor-not-allowed uppercase cursor-pointer"
                   >
                     {isConvertingToMd ? (
                       <>
