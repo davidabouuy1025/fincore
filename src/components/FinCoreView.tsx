@@ -850,11 +850,11 @@ export function FinCoreView({
                   key={idx}
                   className={cn(
                     "hover:bg-slate-50 dark:hover:bg-hacker-card-hover/20",
-                    p.name === selectedReport.Metadata.CompanyName && "bg-teal-500/5 font-extrabold"
+                    p.name === selectedReport?.Metadata?.CompanyName && "bg-teal-500/5 font-extrabold"
                   )}
                 >
                   <td className="px-6 py-3.5 font-bold text-hacker-text-main uppercase">
-                    {p.name} {p.name === selectedReport.Metadata.CompanyName && "⭐"}
+                    {p.name} {p.name === selectedReport?.Metadata?.CompanyName && "⭐"}
                   </td>
                   <td className="px-6 py-3.5 text-center text-hacker-text-submain">
                     {p.quality}/100
