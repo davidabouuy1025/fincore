@@ -417,6 +417,8 @@ export default function App() {
               addMoreDocuments={addMoreDocuments}
               useAi={useAi}
               setUseAi={setUseAi}
+              loadReports={loadReports}
+              fetchArchive={fetchArchive}
             />
           )}
 
