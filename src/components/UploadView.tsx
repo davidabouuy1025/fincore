@@ -577,7 +577,7 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
           if (entry.sectors && Array.isArray(entry.sectors)) {
             entry.sectors.forEach((sec: string) => {
               allPromises.push(
-                fetch(`/api/reports-multi/${entry.year}/${sec}`)
+                fetch(`/api/reports/${entry.year}/${sec}`)
                   .then((res) => res.json())
                   .then((data) => {
                     const arr = Array.isArray(data) ? data : [data];
@@ -599,7 +599,19 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
 
       const results = await Promise.all(allPromises);
       const flat = results.flat();
-      setSavedReports(flat);
+      
+      // Deduplicate by companyName, year, and period
+      const seen = new Set<string>();
+      const deduplicated = flat.filter((rep) => {
+        const stored = Array.isArray(rep.Metadata?.StoredFileName) 
+          ? rep.Metadata.StoredFileName.join("_") 
+          : (rep.Metadata?.StoredFileName || `${rep.companyName}_${rep.year}_${rep.period}`);
+        if (seen.has(stored)) return false;
+        seen.add(stored);
+        return true;
+      });
+
+      setSavedReports(deduplicated);
     } catch (err) {
       console.error("[ERROR] Failed to fetch saved reports:", err);
     } finally {
