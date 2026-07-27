@@ -164,14 +164,16 @@ export function FinCoreView({
   });
 
   const getSectorAvailability = (sec: string) => {
+    const cleanSec = sec.toUpperCase().replace(/\s+/g, "_");
     return archive.some(entry =>
-      entry.sectors.some(s => s.toUpperCase() === sec.toUpperCase())
+      entry.sectors.some(s => s.toUpperCase().replace(/\s+/g, "_") === cleanSec)
     );
   };
 
   const getSectorYears = (sec: string) => {
+    const cleanSec = sec.toUpperCase().replace(/\s+/g, "_");
     return archive
-      .filter(entry => entry.sectors.some(s => s.toUpperCase() === sec.toUpperCase()))
+      .filter(entry => entry.sectors.some(s => s.toUpperCase().replace(/\s+/g, "_") === cleanSec))
       .map(entry => entry.year)
       .sort((a, b) => parseInt(b) - parseInt(a));
   };
