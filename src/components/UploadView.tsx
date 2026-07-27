@@ -372,7 +372,7 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
       }
 
       const cleanYear = rawYear.trim();
-      const cleanSector = String(parsedJson.sector).trim();
+      const cleanSector = String(parsedJson.sector || reviewSector || "TECHNOLOGY").trim().toUpperCase().replace(/\s+/g, "_");
       const cleanPeriod = String(selectedMdPeriod || parsedJson.period || "annual").trim();
       const cleanCurrency = String(selectedMdCurrency || parsedJson.currency || "MYR").trim();
 
