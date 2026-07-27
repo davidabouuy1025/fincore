@@ -1158,26 +1158,25 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
         <div className="space-y-6">
           {/* Toggle Mode Segmented Control */}
           <div className="flex gap-1.5 p-1 bg-white dark:bg-hacker-card-bg rounded-xl border border-slate-200 dark:border-zinc-800/60 max-w-xl">
-            {/* TEMP: Temporary disabled */}
-            {/* <button
+            <button
               onClick={() => setIngestMode("new")}
               className={cn(
                 "flex-1 text-[10px] font-black uppercase tracking-wider py-2.5 rounded-lg transition-all cursor-pointer",
                 ingestMode === "new"
                   ? "bg-white dark:bg-zinc-800 text-teal-800 dark:text-teal-400 shadow-3xs border border-slate-200 dark:border-zinc-750/50"
-                  : "text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300"
+                  : "text-slate-500 hover:text-slate-800 dark:hover:text-zinc-300"
               )}
             >
               Ingest New Reports
-            </button> */}
+            </button>
 
             <button
               onClick={() => setIngestMode("markdown")}
               className={cn(
                 "flex-1 text-[10px] font-black uppercase tracking-wider py-2.5 rounded-lg transition-all cursor-pointer",
                 ingestMode === "markdown"
-                  ? "bg-white dark:bg-zinc-800 text-black dark:text-teal-400 shadow-3xs border border-slate-200 dark:border-zinc-750/50"
-                  : "text-black hover:text-black dark:hover:text-zinc-300"
+                  ? "bg-white dark:bg-zinc-800 text-teal-800 dark:text-teal-400 shadow-3xs border border-slate-200 dark:border-zinc-750/50"
+                  : "text-slate-500 hover:text-slate-800 dark:hover:text-zinc-300"
               )}
             >
               Markdown & Ingest
