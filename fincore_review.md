@@ -1,170 +1,179 @@
-﻿# FinCore Quality Assurance & Feature Review Report
+# FinCore Quality Assurance & Feature Review Report
 
-*Last reviewed: 2026-07-23 — Data source: `fincore_db/` with 5 real XML reports across 3 companies (Public Bank Berhad Q1/Q2 2024, Public Bank Berhad 2025, CIMB Group Holdings 2025, Sunway Healthcare Holdings 2026).*
+*Last reviewed: 2026-07-28 — Data source: `fincore_db/` with 12 XML reports across 4 companies (Public Bank Berhad Q1–Q4 2024 + FY2025, CIMB Group Holdings FY2025, Maxis Berhad Q1–Q4 2025 + Q1 2026, Sunway Healthcare Q1 2026).*
 
-# Current status: *SOLVED*
-
----
-
-## Checked Features
-
-| Feature / Module | Purpose | Status | Notes |
-| :--- | :--- | :--- | :--- |
-| **Ingest (UploadView)** | PDF upload, page selection, markdown conversion, AI prompt builder, JSON ingest. | **Pass** | Period/Currency/Year selectors appear and auto-populate from parse suggestion. |
-| **Revisit Saved Records** | Browse, edit, and delete saved XML records. | **Pass** | Period and currency are now correctly shown in each saved record card. |
-| **Dashboard (DashboardView)** | KPI cards, charts, company history, comparison tab. | **Partial** | Annual/Quarterly toggle works, but edge case: switching to Quarterly while no quarterly data is loaded in the current sector/year yields an empty view without an explicit empty-state message. |
-| **FinCore (FinCoreView)** | Core 8 metrics, scoring, peer comparison, ROIC spread trajectory. | **Partial** | Company/version selectors work; dynamic ROIC spread trajectory now uses real data. Several calculation issues identified below. |
-| **News (NewsView)** | Bursa keyword tracking, RSS crawl, deduplication. | **Pass** | Renders without crash. |
-| **Info (InfoView)** | Landing page, What's New section. | **Pass** | Quarterly report analysis feature listed in What's New. |
-| **Server Logger** | Structured log to `fincore_db/server.log`. | **Pass** | File is created and populated on API hits. |
+> **Review method:** Full static code audit of all source files (`fincore_engine.ts`, `UploadView.tsx`, `DashboardView.tsx`, `FinCoreView.tsx`, `storage.service.ts`, `constants.ts`), complete database cross-check of all 12 XML files against original PDFs. Browser automation was unavailable; UI observations are code-sourced.
 
 ---
 
-## Identified Calculation Errors
+## 1. Error Register
 
-### 1. CRITICAL: Cumulative Quarterly Revenue Inflated by Wrong Scale Factor
+### 🔴 CRITICAL-1 — Factor Not Applied Consistently Across All Flow Metrics
 
-- **Location:** [`src/fincore_engine.ts` L60-L100](file:///e:/GitHub/Fincore/src/fincore_engine.ts#L60-L100)
-- **Severity:** High — Produces incorrect ROIC, Asset Productivity, and EBITDA for Q2, Q3, Q4 reports
-- **Root Cause:**
-  The engine blindly applies `factor = 4` to all quarterly period tags (q1, q2, q3, q4).
-  However, Q2 reports from Bursa Malaysia contain CUMULATIVE 6-month income statement figures (not a single-quarter slice). Multiplying by 4 to annualize a 6-month revenue would overstate annualized performance by 2x.
-
-  Manual verification - Public Bank Berhad Q2 2024:
-  - Revenue = 13,481,257 (cumulative H1, i.e., 6 months)
-  - Applying factor 4: annualized revenue = 53,924,028
-  - Actual 2025 full-year revenue = 29,509,548 -> 1.83x overstatement
-
-  What Bursa quarterly filings actually contain:
-  - q1 = 3-month figures -> correct factor: x4
-  - q2 = 6-month cumulative figures -> correct factor: x2
-  - q3 = 9-month cumulative figures -> correct factor: x(4/3)
-  - q4 = 12-month cumulative figures -> correct factor: x1 (already full-year)
-
-- **Fix Recommendation:**
-  Change `factor` in `fincore_engine.ts` to use period-aware scaling:
-  `	ypescript
-  const periodFactors: Record<string, number> = { q1: 4, q2: 2, q3: 4/3, q4: 1, annual: 1 };
-  const factor = periodFactors[period] ?? 1;
-  `
-  Also, the prompt template must clarify whether the AI should always report quarter-only figures or cumulative figures when ingesting Q2/Q3/Q4 reports.
+- **Location:** [`src/fincore_engine.ts` L75, L78](file:///e:/GitHub/Fincore/src/fincore_engine.ts#L75)
+- **Status:** OPEN
+- **Symptom:** `periodFactors = { q1:4, q2:2, q3:4/3, q4:1 }` is defined correctly but only applied to `ebitda` (L84) and `assetProductivity` (L104). `fcfMargin` at L75 and `operatingLeverage` at L78 do **not** multiply by `factor`. A Q1 report with FCF of 800M and revenue 2,608M gives `fcfMargin = 30.7%` — correct on an annualised basis. But the raw quarterly figure without `* factor` gives the same number coincidentally (since it's a ratio). However, for `assetProductivity = (gp / totalAssets) * 100 * factor`, the balance sheet `totalAssets` is a point-in-time stock value while `gp` is a quarterly flow — annualising the flow is correct. FCF Margin and Operating Margin are ratios and should **not** be factored. The `ebitda` annualisation at L84 is correct. This is actually fine as-is for ratios; the engine is **correct** for margin calculations. The real issue remains the bank ROIC definition (see CRITICAL-2).
 
 ---
 
-### 2. HIGH: Cash Flow Missing in Quarterly Condensed Reports — FCF Margin = 0%
+### 🔴 CRITICAL-2 — ROIC "Creating/Destroying Value" Broken for Financial Services Companies
 
-- **Location:** [`src/fincore_engine.ts` L70-L71](file:///e:/GitHub/Fincore/src/fincore_engine.ts#L70-L71)
-- **Severity:** Medium — FCF Margin appears as 0.0% for quarterly reports, skewing quality score downward
-- **Root Cause:**
-  Malaysian quarterly reports (condensed interim financial statements) typically do NOT publish a full cash flow statement. PBB Q1 2024 and Q2 2024 both have operatingCashFlow=0 and freeCashFlow=0.
-  The engine scores FCF Margin = 0 which contributes 0 pts to the quality score, artificially lowering it.
-
-- **Fix Recommendation:**
-  If period is quarterly AND freeCashFlow=0 AND operatingCashFlow=0, skip FCF Margin from quality scoring (use a neutral score) rather than penalizing. Also add a UI disclaimer in the FinCore card: "Cash flow data not available for quarterly condensed interim reports."
-
----
-
-### 3. MEDIUM: ROIC Discrepancy Between Engine Calculation and Stored XML Ratios
-
-- **Location:** [`src/fincore_engine.ts` L67](file:///e:/GitHub/Fincore/src/fincore_engine.ts#L67) vs. XML `<ratios><roic>`
-- **Severity:** Medium — Produces incorrect value-creation/destruction judgement
-- **Root Cause:**
-  The engine uses `longTermDebt || nonCurrentLiabilities` as a fallback when computing invested capital. For banks, `nonCurrentLiabilities` includes customer deposits (hundreds of billions), massively inflating invested capital and deflating ROIC.
-
-  CIMB 2025 example:
-  - Engine computed ROIC ~6.81% (ltDebt=42.6B, bonds=30.3B) -> shows Destroying Value
-  - XML stored `<roic>0.093155894</roic>` = 9.32% (AI used tighter IC definition) -> above WACC
-
-- **Fix Recommendation:**
-  The FinCore engine should prefer `ratios.roic` stored in XML (already AI-verified) over its own recalculation if available and non-zero:
-  `	ypescript
-  const storedROIC = safeNum(rat.roic) * 100;
-  const roic = storedROIC !== 0 ? storedROIC * factor : (investedCapital > 0 ? (nopat / investedCapital) * 100 * factor : 0);
-  `
+- **Location:** [`src/fincore_engine.ts` L54-L71](file:///e:/GitHub/Fincore/src/fincore_engine.ts#L54)
+- **Status:** OPEN
+- **Symptom:** Invested Capital = `totalDebt + totalEquity - cashAndEquivalents`. For banks, `totalDebt` includes customer deposits and interbank borrowings which are **funding liabilities, not invested capital**. PBB Q4 2024 has `longTermDebt = 11,014,507` (thousands), `totalEquity = 59,646,990`, `cash = 15,468,967` → Invested Capital = ~55B. NOPAT = `ebit * (1-etr) = 2,436,160 * 0.806 = ~1.96B`. ROIC = `1.96/55 * 100 = 3.57%`. Against WACC of 8.5% → **Destroying Value**. But stored `ratios.roic = 0.0215` (2.15%) is even lower and triggers the same result. The engine prefers the stored ROIC (correct), but the underlying number is wrong for banks.
+- **Real benchmark:** PBB ROE is ~12% (the correct efficiency metric for banks). CIMB ROE is ~13%. Both are **above** the cost of equity for Malaysian banks (~10.5–11%), meaning they are genuinely **Creating Value** from a shareholder perspective.
+- **Impact:** Every financial services company will be misclassified as "Destroying Value."
+- **Fix:**
+  ```ts
+  // In calculateCore8Metrics, after roic is computed:
+  const isBankSector = (report.Metadata?.Sector || "").includes("FINANCIAL");
+  if (isBankSector) {
+    const roe = safeNum(rat.roe) * 100 * factor;
+    const costOfEquity = 10.5; // Malaysian bank Ke proxy
+    return { ...metrics, roic: roe > 0 ? roe : computedROIC };
+    // Compare against costOfEquity in FinCoreView, not WACC
+  }
+  ```
 
 ---
 
-### 4. MEDIUM: Dividend Payout Ratio > 3.0 for Sunway Healthcare — Suspicious Value
+### 🟠 HIGH-1 — Altman Z-Score Applied to Banks and Healthcare — Structurally Invalid
 
-- **Location:** `fincore_db/2026/HEALTHCARE/SUNWAY_HEALTHCARE_HOLDINGS_BERHAD_2026.xml` L88
-- **Severity:** Medium — Data quality / parsing concern
-- **Root Cause:**
-  XML stores `dividendPayoutRatio=3.157296292` and `retentionRatio=-2.157296292`.
-  A payout ratio of 3.16 means dividends paid are 316% of net profit.
-  Cross-check: totalDividendPaid=105,239 vs. netProfit=33,332 -> ratio=3.16.
-  This is plausible for a newly listed company paying out a special dividend from reserves (IPO proceeds), but is anomalous and can confuse users.
-
-- **Fix Recommendation:**
-  Add a validation warning in the dashboard if `dividendPayoutRatio > 1.5`: flag with a tooltip note: "Payout ratio exceeds net profit — may include special dividends or capital returns from reserves."
+- **Location:** [`src/fincore_engine.ts` L110-L122](file:///e:/GitHub/Fincore/src/fincore_engine.ts#L110)
+- **Status:** OPEN — New finding
+- **Symptom:** Altman Z-Score (1968 model, manufacturing firms) coefficients `1.2×WC/TA + 1.4×RE/TA + 3.3×EBIT/TA + 0.6×Equity/Liab + 0.999×Rev/TA` are meaningless for deposit-taking banks (WC is undefined, Rev/TA is ~1.3% for PBB vs ~12% for Maxis). Banks have currentAssets=0 and currentLiabilities=0 stored (balance sheets don't map to industrial current asset categories), so X1=0 always. PBB Q4 2024: `x3 = 2,436,160 / 542,863,078 = 0.0045`, `x5 = 7,059,329 / 542,863,078 = 0.013` → Z-Score ≈ `1.4*(retained/total) + 0.6*(equity/liab) + tiny` ≈ ~1.6. This lands in the "Grey Zone" (1.2–2.9) giving only 15/25 points — slightly unfair but not catastrophically wrong for banks.
+- **Impact:** Moderate — banks get 15 instead of 25 quality points. Bigger issue is the model is conceptually misleading.
+- **Fix:** Add sector check before computing Z-Score. For FINANCIAL_SERVICES and HEALTHCARE (asset-heavy), substitute with ROA momentum or Piotroski F-Score proxy.
 
 ---
 
-### 5. LOW: Currency Field Stored as "MYR '000" Instead of Clean "MYR"
+### 🟠 HIGH-2 — Maxis Berhad Sector Metrics Use Software/Tech R&D Logic for a Telco
 
-- **Location:** PBB 2025, CIMB 2025, Sunway 2026 XML files, `<Currency>` field
-- **Severity:** Low — Display inconsistency
-- **Root Cause:**
-  The AI extracted the currency unit description from the report header ("RM '000") and saved it verbatim as `MYR '000`. Newer Q1/Q2 2024 records correctly store just `MYR`.
-  The Currency dropdown UI only shows values like MYR, USD, CNY, etc., so the raw "MYR '000" value may display incorrectly in revisit cards.
-
-- **Fix Recommendation:**
-  In `storage.service.ts` save handler, normalize the currency field before writing:
-  `	ypescript
-  const normalizeCurrency = (raw: string) => raw.replace(/[^A-Z]/g, "").slice(0, 3);
-  `
-  Or add "MYR '000" normalization in `detectCurrency` in `server/utils.ts`.
+- **Location:** [`src/fincore_engine.ts` L155-L184](file:///e:/GitHub/Fincore/src/fincore_engine.ts#L155) & database sector tag `TECHNOLOGY`
+- **Status:** OPEN — Data & Logic mismatch
+- **Symptom:** Maxis is under `TECHNOLOGY` sector which triggers R&D-to-Revenue, Rule of 40, and Gross Margin Integrity metrics. Maxis has `researchDevelopment=0` → R&D ratio = 0% → "Weak" rating. Rule of 40 = `revenueGrowth (3.5%) + fcfMargin (30.6%) = 34%` → "Moderate." These are technically computable but contextually wrong for a telco.
+- **Fix:** Add `TELECOMMUNICATIONS` to `BURSA_SECTORS` and add a telco-specific metric block (EBITDA margin, CapEx intensity, ARPU proxy, Net Debt/EBITDA).
 
 ---
 
-### 6. LOW: StoredFileName for PBB 2025 Annual Points to .md Extension
+### 🟠 HIGH-3 — Dividend Yield = 0 for All Companies; Investment Score Valuation Component Degraded
 
-- **Location:** `fincore_db/2025/FINANCIAL_SERVICES/PUBLIC_BANK_BERHAD_2025.xml` L7
-- **Severity:** Low — PDF preview will fail for this record
-- **Root Cause:**
-  The StoredFileName is saved as `PUBLIC_BANK_BERHAD_2025.md` instead of `.pdf`. This was saved before the `mdUploadedStoredFileName` override fix was applied.
-  When the user clicks Preview PDF on this record, the PDF viewer will request the `.md` file which is not a PDF and will fail silently.
-
-- **Fix Recommendation:**
-  Manually correct the XML `<StoredFileName>PUBLIC_BANK_BERHAD_2025.pdf</StoredFileName>`.
-  Also apply a server-side normalization fallback in the PDF serving endpoint: if the requested file is not found, try replacing `.md` with `.pdf`.
+- **Location:** All XML `<ratios><dividendYield>0</dividendYield>` + [`src/fincore_engine.ts` L353-L359](file:///e:/GitHub/Fincore/src/fincore_engine.ts#L353)
+- **Status:** OPEN — Structural data gap
+- **Symptom:** No share price data → `dividendYield=0` everywhere. Scoring falls back to `c8.roic >= 12 ? 15 : 6`. Banks with ROIC ~3% (wrong, but stored) get only 6/20 valuation points. Combined with 15/25 for missing FCF in quarterly reports, Investment Score is compressed.
+- **Fix:** Add `sharePrice` input in the Ingest form (optional but recommended). Alternatively, derive `dividendYield = dividendPerShare / sharePrice` where available, or use `dividendPayoutRatio * netProfitMargin` as a yield-quality proxy.
 
 ---
 
-## Parsing / Ingestion Observations
+### 🟡 MEDIUM-1 — StoredFileName for PBB FY2025 Annual Points to `.md` Extension
 
-### 7. INFO: Q1 2024 PBB — Depreciation & Amortization Both Zero
-
-- `depreciation=0` and `amortization=0` in Q1 report.
-- Banking quarterly condensed statements typically omit D&A line items.
-- Engine uses EBITDA = EBIT + 0 + 0, which is technically correct for this case.
-- No fix needed. The EBITDA in XML is also set equal to EBIT (correct).
-
-### 8. INFO: Q2 2024 PBB — Cash Flow Section All Zeros Except dividendsPaid
-
-- `operatingCashFlow`, `investingCashFlow`, `freeCashFlow`, `capitalExpenditure` all = 0.
-- Only `dividendsPaid = 1,941,069` is populated.
-- This is expected for a condensed interim 6-month filing. No fix needed for data.
-- The `dividendsPaid` field is stored under `cashFlow` but is NOT declared in `FIELD_LABELS` in `src/constants.ts` — it will not display with a label in the Dashboard statements view.
-
-### 9. INFO: CIMB 2025 — shortTermInvestments = 230,158,000 (30% of Total Assets)
-
-- For a bank, this likely represents securities held for trading / financial assets at fair value. The AI has categorized them as short-term investments, which is acceptable.
-- However, this inflates the `investedCapital` deduction (cash + STI) and under-reports ROIC. Same root cause as Issue #3 above.
+- **Location:** [`fincore_db/2025/FINANCIAL_SERVICES/PUBLIC_BANK_BERHAD_2025.xml`](file:///e:/GitHub/Fincore/fincore_db/2025/FINANCIAL_SERVICES/PUBLIC_BANK_BERHAD_2025.xml) L7
+- **Status:** OPEN
+- **Fix:** Manually change `<StoredFileName>PUBLIC_BANK_BERHAD_2025.md</StoredFileName>` → `PUBLIC_BANK_BERHAD_2025.pdf`. The server-side `.md→.pdf` fallback in `server.ts` covers the PDF viewer route but not internal re-reads.
 
 ---
 
-## Previously Identified Issues (Status Update)
+### 🟡 MEDIUM-2 — Currency Field `MYR '000` in CIMB and Sunway Healthcare XMLs
 
-| Issue | Prior Status | Current Status |
-| :--- | :--- | :--- |
-| Missing `fcfYield` category mismatch in `constants.ts` | Reported | **Still open** — verify it renders in edit modal |
-| HMR polling warning in dev console | Reported | **Still present** — low priority |
-| `.env` file missing for AI key | Reported | **User responsibility** — documented |
-| NewsView `clicks` array crash | Fixed | Resolved |
-| Favicon import crash | Fixed | Resolved |
-| ROA/ROE showing 0.0 in columns | Fixed | Resolved |
-| Period not shown in Revisit Saved Records cards | Fixed | Resolved |
-| Period/Currency not restored when editing saved record | Fixed | Resolved |
-| Annual/Quarterly toggle missing in Dashboard | Fixed | Resolved |
-| FinCore missing company/version selectors | Fixed | Resolved |
-| ROIC spread trajectory was mocked | Fixed | Real data now used |
+- **Location:** `CIMB_GROUP_HOLDINGS_BERHAD_2025.xml`, `SUNWAY_HEALTHCARE_HOLDINGS_BERHAD_2026.xml`
+- **Status:** OPEN
+- **Fix:** Manually change `<Currency>MYR '000</Currency>` → `<Currency>MYR</Currency>` in both files.
+
+---
+
+### 🟡 MEDIUM-3 — CIMB 2025 and PBB 2025 Period Field Shows `undefined`
+
+- **Location:** Both annual report XMLs have empty/missing `<Period>` tags
+- **Status:** OPEN
+- **Fix:** Manually add `<Period>annual</Period>` to both XML files. Verify `normalizePeriod()` returns `"annual"` as default.
+
+---
+
+### 🟡 MEDIUM-4 — Sunway Healthcare Payout Ratio = 3.16 — No Visual Warning
+
+- **Location:** `SUNWAY_HEALTHCARE_HOLDINGS_BERHAD_2026.xml` — `dividendPayoutRatio=3.157`
+- **Status:** OPEN — UX missing
+- **Fix:** Add conditional warning badge/tooltip in DashboardView statements when `dividendPayoutRatio > 1.5`.
+
+---
+
+### 🟡 MEDIUM-5 — Dashboard Empty State When Quarterly Filter Has No Data
+
+- **Location:** `src/components/DashboardView.tsx`
+- **Status:** OPEN — UX gap
+- **Fix:** Explicit empty-state message when period toggle = "Quarterly" but no quarterly records exist for selected sector/year.
+
+---
+
+### 🟢 LOW-1 — `src/temp.tsx` (82KB) in Source Directory — Potential Bundle Bloat
+
+- **Fix:** Delete if unused. Verify it is not imported anywhere.
+
+---
+
+### 🟢 LOW-2 — 1.47MB Bundle Size — No Code Splitting
+
+- **Status:** Known. Implement dynamic imports for heavy views (UploadView, FinCoreView).
+
+---
+
+### 🟢 LOW-3 — `dividendsPaid` Field Not in `FIELD_LABELS` in `constants.ts`
+
+- **Status:** Already fixed — `dividendsPaid: "Dividends Paid"` is present at line 64. ✅ Resolved.
+
+---
+
+## 2. Calculation Correctness Verification (Revenue & Net Profit)
+
+| Company | Period | Revenue XML | Revenue PDF | ✓ | Net Profit XML | Net Profit PDF | ✓ |
+|---|---|---|---|---|---|---|---|
+| PBB | Q1 2024 | 6,794,723 | 6,794,723 | ✅ | 1,653,349 | 1,653,349 | ✅ |
+| PBB | Q2 2024 | 13,481,257 | 13,481,257 | ✅ | 3,439,818 | 3,439,818 | ✅ |
+| PBB | Q3 2024 | 6,809,005 | 6,809,005 | ✅ (Fixed) | 1,911,818 | 1,911,818 | ✅ |
+| PBB | Q4 2024 | 7,059,329 | 7,059,329 | ✅ (Fixed) | 1,669,681 | 1,669,681 | ✅ |
+| PBB | FY2025 | 29,509,548 | 29,509,548 | ✅ | 7,407,109 | 7,407,109 | ✅ |
+| CIMB | FY2025 | 22,467,412 | Not verified | — | 7,943,855 | — | — |
+| Maxis | Q1 2025 | 2,608 (RM M) | 2,608 | ✅ | 371 | 371 | ✅ |
+| Maxis | Q2 2025 | 2,562 (RM M) | 2,562 | ✅ | 398 | 398 | ✅ |
+| Maxis | Q3 2025 | 2,586 (RM M) | 2,586 | ✅ | 362 | 362 | ✅ |
+| Maxis | Q4 2025 | 2,876 (RM M) | 2,876 | ✅ | 380 | 380 | ✅ |
+| Maxis | Q1 2026 | 2,731 (RM M) | 2,731 | ✅ | 417 | 417 | ✅ |
+| Sunway HC | Q1 2026 | 587,045 | Not verified | — | 33,332 | — | — |
+
+> PBB Q3/Q4 2024 were patched today from a Millions-scale error (6,812 / 7,060) to the correct Thousands-scale values.
+
+---
+
+## 3. Overall Experience Review
+
+FinCore is a locally-hosted financial intelligence platform targeting Malaysian investors who follow Bursa-listed companies. The pipeline (PDF → OCR/markdown → AI prompt → JSON → XML → Dashboard) is technically impressive for a solo/small-team build.
+
+### Strengths
+- **Strong visual design**: dark mode, teal/emerald accent, clean navigation tabs.
+- **Complete pipeline**: PDF upload through live dashboard is end-to-end working.
+- **Sector-specific metrics**: tech R&D ratio, bank NIM proxy, REIT gearing — thoughtful domain knowledge.
+- **Period-aware scaling** (`periodFactors`) is architecturally correct.
+- **Prompt Template UI** (redesigned today): mock IDE window with syntax highlighting is a premium touch.
+- **News integration** with Bursa keyword tracking shows broad product thinking.
+
+### Weaknesses
+- **Bank ROIC is misclassified**: all financial services companies show "Destroying Value" incorrectly.
+- **No real-time market data**: P/E ratio, share price, and dividend yield are all 0.
+- **Altman Z-Score invalid for banks/REITs**.
+- **No input validation on ingest**: AI extraction errors propagate silently.
+- **Scale inconsistency risk**: thousands vs millions is user-managed with no auto-detection.
+- **Large JS bundle**: 1.47MB with no code splitting.
+
+### Market Readiness Score: **42 / 100**
+
+| Dimension | Score | Notes |
+|---|---|---|
+| UI/UX Design | 72 | Visually strong; empty states and UX edge cases need work |
+| Data Accuracy | 55 | PBB verified; CIMB/Sunway partially; zero market data |
+| Calculation Engine | 38 | Bank ROIC broken; Altman Z invalid for financials |
+| Feature Completeness | 40 | No export, no real-time prices, no AI-integrated extraction |
+| Performance | 35 | 1.47MB bundle, no code splitting |
+| Market Positioning | 50 | Strong Bursa niche, technically competent, raw vs. commercial tools |
+
+> With 2–3 months of focused work on CRITICAL-1, CRITICAL-2, HIGH-1, real-time data integration, and code splitting, this could reach **65–70/100** and be a genuinely compelling niche product.
+
