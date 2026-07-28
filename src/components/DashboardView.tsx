@@ -250,6 +250,29 @@ function getReportVal(r: CompanyReport, cat: string, field: string, history?: Co
   return val;
 }
 
+function getReportDivisor(r: CompanyReport): number {
+  if (!r || !r.Financials) return 1000000;
+
+  const rev = safeNum(r.Financials.incomeStatement?.revenue);
+  if (rev > 0) {
+    if (rev < 100000) return 1;          // In Millions
+    if (rev < 100000000) return 1000;    // In Thousands
+    return 1000000;                      // In Units
+  }
+
+  const assets = safeNum(r.Financials.balanceSheet?.totalAssets);
+  if (assets > 0) {
+    if (assets < 1000000) return 1;       // In Millions
+    if (assets < 1000000000) return 1000; // In Thousands
+    return 1000000;                       // In Units
+  }
+
+  // Fallback to currency detection
+  const currencyStr = r.Metadata?.Currency || "MYR '000";
+  const isThousands = currencyStr.includes("'000") || currencyStr.includes("Thousands");
+  return isThousands ? 1000 : 1000000;
+}
+
 // Metric metadata dictionary for the trend metric selector
 const METRIC_DICT: Record<string, { label: string; cat: string; field: string; unit: string }> = {
   revenue: { label: "Revenue", cat: "incomeStatement", field: "revenue", unit: "MYR '000" },
@@ -970,7 +993,7 @@ ${growth >= 0
                 <h3 className="text-sm font-bold text-hacker-text-submain">Revenue</h3>
               </div>
               <p className="text-xl font-black font-mono text-hacker-text-main mt-1">
-                RM {(overviewStats.revenue.val / 1000).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M
+                RM {(overviewStats.revenue.val / getReportDivisor(fullCompanyHistory[0])).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M
               </p>
               <div className="flex items-center gap-1.5 mt-3 text-xs">
                 {overviewStats.revenue.yoy !== null && (
@@ -1038,7 +1061,7 @@ ${growth >= 0
                 <h3 className="text-sm font-bold text-hacker-text-submain">Free Cash Flow</h3>
               </div>
               <p className="text-xl font-black font-mono text-hacker-text-main mt-1">
-                RM {(overviewStats.fcf.val / 1000).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M
+                RM {(overviewStats.fcf.val / getReportDivisor(fullCompanyHistory[0])).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M
               </p>
               <div className="flex items-center gap-1.5 mt-3 text-xs">
                 {overviewStats.fcf.yoy !== null && (
@@ -1056,7 +1079,7 @@ ${growth >= 0
                   </span>
                 )}
                 <span className="text-[10px] text-hacker-text-muted font-bold">
-                  OCF: RM {(overviewStats.ocf.val / 1000).toFixed(0)}M
+                  OCF: RM {(overviewStats.ocf.val / getReportDivisor(fullCompanyHistory[0])).toFixed(0)}M
                 </span>
               </div>
             </div>
@@ -1089,7 +1112,7 @@ ${growth >= 0
                   </span>
                 )}
                 <span className="text-[10px] text-hacker-text-muted font-bold">
-                  Assets: RM {(overviewStats.assets.val / 1000).toFixed(0)}M
+                  Assets: RM {(overviewStats.assets.val / getReportDivisor(fullCompanyHistory[0])).toFixed(0)}M
                 </span>
               </div>
             </div>
@@ -1311,7 +1334,6 @@ ${growth >= 0
                   </th>
                   {fullCompanyHistory.map((rep, idx) => {
                     const currencyStr = rep.Metadata?.Currency || "MYR '000";
-                    const isThousands = currencyStr.includes("'000") || currencyStr.includes("Thousands");
                     const currencyName = currencyStr.split(" ")[0] || "MYR";
                     return (
                       <th
@@ -1319,7 +1341,7 @@ ${growth >= 0
                         className="px-6 py-4 text-[10px] font-bold border-l border-hacker-border/10 text-center text-hacker-text-main uppercase tracking-wider"
                       >
                         <div>FY {rep.Metadata?.FinancialYear}{rep.Metadata?.Period && rep.Metadata.Period !== "annual" && ` (${rep.Metadata.Period.toUpperCase()})`}</div>
-                        <div className="text-[8px] opacity-60 font-normal mt-0.5">{currencyName} {isThousands ? "Millions" : "Units"}</div>
+                        <div className="text-[8px] opacity-60 font-normal mt-0.5">{currencyName} Millions</div>
                       </th>
                     );
                   })}
@@ -1428,9 +1450,7 @@ ${growth >= 0
                               displayVal = `${val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}x`;
                             }
                           } else {
-                            const currencyStr = rep.Metadata?.Currency || "MYR '000";
-                            const isThousands = currencyStr.includes("'000") || currencyStr.includes("Thousands");
-                            const divisor = isThousands ? 1000 : 1000000;
+                            const divisor = getReportDivisor(rep);
                             displayVal = (val / divisor).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
                           }
 
