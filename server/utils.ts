@@ -129,16 +129,16 @@ export function detectPeriod(text: string): string {
   const normalized = text.toLowerCase();
 
   // Look for quarter keywords
-  if (/\b(1st\s+quarter|first\s+quarter|quarter\s+1|q1)\b/i.test(normalized)) {
+  if (/\b(1st\s*quarter(ly)?|first\s*quarter(ly)?|quarter\s*1|q1)\b/i.test(normalized)) {
     return "q1";
   }
-  if (/\b(2nd\s+quarter|second\s+quarter|quarter\s+2|q2)\b/i.test(normalized)) {
+  if (/\b(2nd\s*quarter(ly)?|second\s*quarter(ly)?|quarter\s*2|q2)\b/i.test(normalized)) {
     return "q2";
   }
-  if (/\b(3rd\s+quarter|third\s+quarter|quarter\s+3|q3)\b/i.test(normalized)) {
+  if (/\b(3rd\s*quarter(ly)?|third\s*quarter(ly)?|quarter\s*3|q3)\b/i.test(normalized)) {
     return "q3";
   }
-  if (/\b(4th\s+quarter|fourth\s+quarter|quarter\s+4|q4)\b/i.test(normalized)) {
+  if (/\b(4th\s*quarter(ly)?|fourth\s*quarter(ly)?|quarter\s*4|q4)\b/i.test(normalized)) {
     return "q4";
   }
 
@@ -152,6 +152,19 @@ export function detectPeriod(text: string): string {
   if (/\bnine\s+months\s+ended\b/i.test(normalized)) {
     return "q3";
   }
+
+  return "annual";
+}
+
+export function normalizePeriod(period: string): string {
+  const p = (period || "").trim().toLowerCase();
+  if (!p) return "annual";
+  if (p === "annual" || p === "fy" || p === "year") return "annual";
+
+  if (/\b(1st\s*quarter(ly)?|first\s*quarter(ly)?|quarter\s*1|q1)\b/i.test(p) || p.includes("q1") || p.includes("first") || p.includes("1st")) return "q1";
+  if (/\b(2nd\s*quarter(ly)?|second\s*quarter(ly)?|quarter\s*2|q2)\b/i.test(p) || p.includes("q2") || p.includes("second") || p.includes("2nd")) return "q2";
+  if (/\b(3rd\s*quarter(ly)?|third\s*quarter(ly)?|quarter\s*3|q3)\b/i.test(p) || p.includes("q3") || p.includes("third") || p.includes("3rd")) return "q3";
+  if (/\b(4th\s*quarter(ly)?|fourth\s*quarter(ly)?|quarter\s*4|q4)\b/i.test(p) || p.includes("q4") || p.includes("fourth") || p.includes("4th")) return "q4";
 
   return "annual";
 }
