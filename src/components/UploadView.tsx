@@ -276,6 +276,149 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
 }`;
   };
 
+  const getJSONSchemaOnly = () => {
+    return `{
+  "companyName": "Company Name (e.g. Nestle Malaysia Berhad)",
+  "year": \${selectedMdYear},
+  "period": "\${selectedMdPeriod}",
+  "currency": "\${selectedMdCurrency}",
+  "sector": "TECHNOLOGY/PLANTATION/FINANCIAL_SERVICES/CONSUMER_PRODUCTS/INDUSTRIAL_PRODUCTS/REITS/ENERGY/HEALTHCARE/CONSTRUCTION",
+  "originalFileName": "COMPANY_YEAR",
+  "storedFileName": "COMPANY_YEAR",
+  "docType": "DIGITAL_PDF",
+  "selectedPages": "\${mdSelectedPages}",
+  "financials": {
+    "incomeStatement": {
+      "revenue": 0,
+      "nonOperatingRevenue": 0,
+      "costOfGoodsSold": 0,
+      "grossProfit": "revenue - costOfGoodsSold",
+      "operatingExpenses": 0,
+      "sgaExpenses": 0,
+      "researchDevelopment": 0,
+      "depreciation": 0,
+      "amortization": 0,
+      "operatingProfit": "grossProfit - operatingExpenses",
+      "financeIncome": 0,
+      "financeCost": 0,
+      "ebit": "profitBeforeTax + financeCost - financeIncome",
+      "ebitda": "ebit + depreciation + amortization",
+      "profitBeforeTax": "ebit + financeIncome - financeCost",
+      "taxExpense": 0,
+      "effectiveTaxRate": "taxExpense / profitBeforeTax",
+      "netProfit": "profitBeforeTax - taxExpense",
+      "retainedEarnings": 0
+    },
+    "balanceSheet": {
+      "totalAssets": "currentAssets + nonCurrentAssets",
+      "currentAssets": 0,
+      "nonCurrentAssets": 0,
+      "cashAndEquivalents": 0,
+      "accountsReceivable": 0,
+      "inventory": 0,
+      "shortTermInvestments": 0,
+      "ppe": 0,
+      "intangibleAssets": 0,
+      "goodwill": 0,
+      "totalLiabilities": "currentLiabilities + nonCurrentLiabilities",
+      "currentLiabilities": 0,
+      "accountsPayable": 0,
+      "shortTermDebt": 0,
+      "nonCurrentLiabilities": 0,
+      "longTermDebt": 0,
+      "bondsPayable": 0,
+      "totalEquity": "totalAssets - totalLiabilities",
+      "commonStock": 0,
+      "preferredStock": 0,
+      "paidInCapital": 0
+    },
+    "cashFlow": {
+      "operatingCashFlow": 0,
+      "investingCashFlow": 0,
+      "financingCashFlow": 0,
+      "capitalExpenditure": 0,
+      "freeCashFlow": 0
+    },
+    "ratios": {
+      "roe": "netProfit / totalEquity",
+      "roa": "netProfit / totalAssets",
+      "roce": "(ebit * (1 - effectiveTaxRate)) / (totalEquity + shortTermDebt + longTermDebt + bondsPayable - cashAndEquivalents - shortTermInvestments)",
+      "grossMargin": "grossProfit / revenue",
+      "operatingMargin": "operatingProfit / revenue",
+      "netProfitMargin": "netProfit / revenue",
+      "currentRatio": "currentAssets / currentLiabilities",
+      "quickRatio": "(cashAndEquivalents + shortTermInvestments + accountsReceivable) / currentLiabilities",
+      "cashRatio": "(cashAndEquivalents + shortTermInvestments) / currentLiabilities",
+      "debtToEquity": "(shortTermDebt + longTermDebt + bondsPayable) / totalEquity",
+      "debtRatio": "totalLiabilities / totalAssets",
+      "interestCoverage": "ebit / financeCost",
+      "assetTurnover": "revenue / totalAssets",
+      "inventoryTurnover": "costOfGoodsSold / inventory",
+      "receivablesTurnover": "revenue / accountsReceivable",
+      "payablesTurnover": "costOfGoodsSold / accountsPayable",
+      "eps": "netProfit / weightedAverageSharesOutstanding",
+      "dilutedEps": "netProfit / dilutedSharesOutstanding",
+      "peRatio": "sharePrice / eps",
+      "totalDividendPaid": 0,
+      "dividendYield": "dividendPerShare / sharePrice",
+      "dividendPerShare": "totalDividendPaid / sharesOutstanding",
+      "dividendPayoutRatio": "dividendPerShare / eps",
+      "retentionRatio": "1 - dividendPayoutRatio"
+    },
+    "growth": {
+      "revenueGrowth": "(currentRevenue - previousRevenue) / previousRevenue",
+      "netIncomeGrowth": "(currentNetProfit - previousNetProfit) / previousNetProfit",
+      "cagr": "((endingValue / beginningValue)^(1 / years)) - 1"
+    },
+    "marketData": {
+      "sharePrice": 0,
+      "marketCapitalization": 0,
+      "sharesOutstanding": 0,
+      "weightedAverageSharesOutstanding": 0,
+      "dilutedSharesOutstanding": 0
+    },
+    "advanced": {
+      "enterpriseValue": "marketCapitalization + shortTermDebt + longTermDebt + bondsPayable - cashAndEquivalents - shortTermInvestments",
+      "evEbitda": "enterpriseValue / ebitda",
+      "fcfYield": "freeCashFlow / marketCapitalization",
+      "eva": "(ebit * (1 - effectiveTaxRate)) - ((totalEquity + shortTermDebt + longTermDebt + bondsPayable - cashAndEquivalents - shortTermInvestments) * wacc)",
+      "workingCapital": "currentAssets - currentLiabilities",
+      "netWorkingCapital": "(currentAssets - cashAndEquivalents - shortTermInvestments) - (currentLiabilities - shortTermDebt)"
+    }
+  }
+}`;
+  };
+
+  const renderHighlightedJson = (jsonString: string) => {
+    const lines = jsonString.split('\n');
+    return lines.map((line, idx) => {
+      const keyRegex = /^(\s*)(".*?")(\s*:\s*)(.*)$/;
+      const match = line.match(keyRegex);
+      if (match) {
+        const [, indent, key, colon, value] = match;
+        let valSpan = <span className="text-slate-700 dark:text-zinc-350">{value}</span>;
+        const trimmedVal = value.trim();
+        if ((trimmedVal.startsWith('"') && trimmedVal.endsWith('"')) || (trimmedVal.startsWith('"') && trimmedVal.endsWith('",'))) {
+          valSpan = <span className="text-amber-600 dark:text-amber-400/90 font-medium">{value}</span>;
+        } else if (!isNaN(parseFloat(trimmedVal)) || trimmedVal === '0,' || trimmedVal === '0') {
+          valSpan = <span className="text-indigo-500 dark:text-violet-400 font-bold">{value}</span>;
+        } else if (trimmedVal.startsWith('{') || trimmedVal.startsWith('[')) {
+          valSpan = <span className="text-slate-400">{value}</span>;
+        }
+        return (
+          <div key={idx} className="whitespace-pre">
+            {indent}
+            <span className="text-sky-600 dark:text-teal-400 font-semibold">{key}</span>
+            <span className="text-slate-400">{colon}</span>
+            {valSpan}
+          </div>
+        );
+      }
+      return <div key={idx} className="whitespace-pre">{line}</div>;
+    });
+  };
+
+
   useEffect(() => {
     if (mdFile) {
       const url = URL.createObjectURL(mdFile);
@@ -1842,16 +1985,70 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
                   </button>
                 </div>
 
-                <div className="space-y-3 text-xs leading-relaxed text-slate-600 dark:text-zinc-300">
-                  <p className="font-semibold text-slate-700 dark:text-zinc-200">
-                    📋 <span className="font-black text-slate-800 dark:text-white">Example Prompt Structure & Output Payload</span>:
-                  </p>
-                  <p className="text-[10px] text-slate-400 leading-normal">
-                    Copy and run the prompt below with your favorite AI engine. Here is an example of the input text format first:
-                  </p>
+                <div className="space-y-4 text-xs leading-relaxed text-slate-600 dark:text-zinc-300">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
+                    <p className="text-[10px] text-slate-400 dark:text-zinc-400 leading-normal">
+                      Copy the custom prompt using the button above. The visualizer below shows the structured template with a placeholder for the extracted markdown to keep it clean.
+                    </p>
+                  </div>
 
-                  <div className="bg-white dark:bg-black p-4 rounded-xl border border-slate-200/65 dark:border-zinc-800 font-mono text-[10px] text-slate-700 dark:text-zinc-400 overflow-y-auto max-h-[220px] whitespace-pre leading-relaxed">
-                    {getPromptTemplate()}
+                  <div className="flex flex-col rounded-xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-black overflow-hidden font-mono text-[11px] transition-all">
+                    {/* Window Title Bar */}
+                    <div className="flex items-center justify-between px-4 py-2.5 bg-slate-100 dark:bg-zinc-900 border-b border-slate-200 dark:border-zinc-800 select-none">
+                      <div className="flex items-center gap-2">
+                        <div className="flex gap-1.5">
+                          <span className="w-2.5 h-2.5 rounded-full bg-red-400 dark:bg-red-500/30 border border-red-500/10"></span>
+                          <span className="w-2.5 h-2.5 rounded-full bg-amber-400 dark:bg-amber-500/30 border border-amber-500/10"></span>
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 dark:bg-emerald-500/30 border border-emerald-500/10"></span>
+                        </div>
+                        <span className="text-[10px] text-slate-500 dark:text-zinc-400 font-bold ml-2">prompt_template.json</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {convertedMarkdown ? (
+                          <span className="text-[9px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25 px-2 py-0.5 rounded-full font-bold">
+                            Markdown Loaded ({(convertedMarkdown.length / 1024).toFixed(1)} KB)
+                          </span>
+                        ) : (
+                          <span className="text-[9px] bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/25 px-2 py-0.5 rounded-full font-bold">
+                            No Markdown Yet
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Editor Content Area */}
+                    <div className="p-4 overflow-y-auto max-h-[280px] leading-relaxed text-slate-700 dark:text-zinc-300">
+                      {/* System Prompt Instructions */}
+                      <div className="mb-4 pb-4 border-b border-slate-200 dark:border-zinc-800/60">
+                        <span className="text-pink-500 dark:text-pink-400 font-bold">// System Instructions</span>
+                        <p className="mt-1 text-slate-500 dark:text-zinc-450 whitespace-pre-wrap italic">
+                          As professional auditor, convert markdown into JSON. Use the formula to calculate if any value is missing but derivable, else leave as 0. STRICTLY double check all the values ensuring that all the values are correct for the financial year.
+                        </p>
+                      </div>
+
+                      {/* Markdown Source Section */}
+                      <div className="mb-4 pb-4 border-b border-slate-200 dark:border-zinc-800/60">
+                        <span className="text-sky-500 dark:text-sky-450 font-bold">// Injected Markdown Data</span>
+                        <div className="mt-1.5 p-2.5 bg-slate-100 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-850 rounded-lg text-slate-500 dark:text-zinc-400">
+                          {convertedMarkdown ? (
+                            <div className="flex items-center justify-between">
+                              <span className="text-amber-600 dark:text-amber-400/90 italic">"[Extracted markdown data of {mdFile?.name || "report"} will be injected here]"</span>
+                              <span className="text-[9px] text-zinc-500 font-normal">{(convertedMarkdown.length).toLocaleString()} chars</span>
+                            </div>
+                          ) : (
+                            <span className="text-amber-500/80 italic">"[No markdown extracted yet. Parse a report on the left first]"</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Target JSON Payload Structure */}
+                      <div>
+                        <span className="text-emerald-500 dark:text-emerald-400 font-bold">// Output JSON Schema & Formulas</span>
+                        <div className="mt-2 pl-2 border-l-2 border-slate-200 dark:border-zinc-800 font-mono text-[10.5px]">
+                          {renderHighlightedJson(getJSONSchemaOnly())}
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
