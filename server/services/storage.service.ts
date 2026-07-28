@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import { XMLBuilder, XMLParser } from "fast-xml-parser";
 import { IStorageService } from "../controllers/report.controller";
-import { toTitleCase } from "../utils";
+import { toTitleCase, normalizePeriod } from "../utils";
 
 export class StorageService implements IStorageService {
   private dbRoot: string;
@@ -43,6 +43,7 @@ export class StorageService implements IStorageService {
     const reportSector = String(report.sector || defaultSector).trim().toUpperCase().replace(/\s+/g, "_");
     const pureMarkdown = report.markdown?.pureMarkdown || report.Markdown?.pureMarkdown || report.pureMarkdown || "";
     companyName = toTitleCase(companyName || "Unknown Company");
+    const normPeriod = normalizePeriod(period);
 
     if (!companyName?.trim()) {
       throw new Error("Company name cannot be empty");
@@ -77,8 +78,8 @@ export class StorageService implements IStorageService {
     const cleanCompany = companyName.toUpperCase().replace(/[^A-Z0-9]/g, "_").replace(/_+/g, "_").replace(/(^_|_$)/g, "");
     const companyBase = cleanCompany || "COMPANY";
     let baseName = `${companyBase}_${reportYear}`;
-    if (period && period.toLowerCase() !== "annual") {
-      baseName = `${companyBase}_${reportYear}_${period.toUpperCase()}`;
+    if (normPeriod && normPeriod.toLowerCase() !== "annual") {
+      baseName = `${companyBase}_${reportYear}_${normPeriod.toUpperCase()}`;
     }
 
     const updatedStoredFiles: string[] = [];
@@ -125,7 +126,7 @@ export class StorageService implements IStorageService {
         Metadata: {
           CompanyName: companyName,
           FinancialYear: reportYear,
-          Period: period || "annual",
+          Period: normPeriod || "annual",
           Sector: reportSector,
           OriginalFileName: originalFilesArray.length > 0 ? (originalFilesArray.length === 1 ? originalFilesArray[0] : originalFilesArray) : originalFileName,
           StoredFileName: storedFilesArray.length > 0 ? (storedFilesArray.length === 1 ? storedFilesArray[0] : storedFilesArray) : storedFileName,
