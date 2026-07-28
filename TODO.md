@@ -70,6 +70,8 @@
 - **Bursa Malaysia official API** — requires registration.
 - **Alpha Vantage** — free tier 25 calls/day with API key.
 
+Ling: We'll pick Yahoo Finance (unofficial). This is good enough for our purpose. We should also make it flexible enough, if we change API from yahoo finance to bursa malaysia API in the future, we can do it easily. It's    important to know that the Yahoo Finance API is unofficial, so it may not be stable and may change in the future.
+
 **Implementation Plan:**
 1. Add `stockTicker` field to the XML schema and ingest form (e.g., `MAXIS.KL`, `1295.KL`).
 2. Create `server/services/market.service.ts`:
@@ -126,6 +128,18 @@
 3. Display reporting unit badge in Revisit Saved Records card.
 
 **Effort:** 1 day | **Impact:** Eliminates the 1000× scale error risk for cross-company comparison.
+
+---
+
+### 1.6 — View by company, year and period combined
+**Goal:** We can view the company's details, including market cap (by that time report) and share price (by that time point) from Yahoo Finance and from database.
+
+**Implementation Plan:**
+1. We let user choose company, year and period are filters (Button beside search bar). Year and period are linked together. We need to use "period" to fetch the correct market cap (for that time point) and share price (for that time point) from Yahoo Finance. We also need to fetch the correct market cap from database based on the year and period.
+2. Users can search for company by name or ticker symbol. (Filtering)
+3. Show all the metrics from the xml file in the FinCoreView.
+
+**Effort:** 2 days | **Impact:** No separate view by choosing only the Fiscal Year or only the Period to view the company data anymore.
 
 ---
 
