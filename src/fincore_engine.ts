@@ -66,9 +66,22 @@ export function calculateCore8Metrics(report: CompanyReport): Core8Metrics {
   
   const investedCapital = totalDebt + totalEquity - cashAndEquiv;
   const storedROIC = safeNum(rat.roic);
-  const storedROICPercent = storedROIC !== 0 ? storedROIC * 100 : 0;
+  const storedROICPercent = storedROIC !== 0 ? (storedROIC < 1 ? storedROIC * 100 : storedROIC) * factor : 0;
   const computedROIC = investedCapital > 0 ? (nopat / investedCapital) * 100 * factor : 0;
-  const roic = storedROICPercent !== 0 ? storedROICPercent : computedROIC;
+  let roic = storedROICPercent !== 0 ? storedROICPercent : computedROIC;
+
+  // Sector check for Financial Services / Bank sector: ROE is the true return metric for banks
+  const sectorTag = (report.Metadata?.Sector || "").toUpperCase();
+  const isBankSector = sectorTag.includes("FINANCIAL") || sectorTag.includes("BANK");
+  if (isBankSector) {
+    const rawROE = safeNum(rat.roe);
+    const storedROEPercent = rawROE !== 0 ? (rawROE < 1 ? rawROE * 100 : rawROE) * factor : 0;
+    const computedROE = totalEquity > 0 ? (safeNum(inc.netProfit) / totalEquity) * 100 * factor : 0;
+    const bankROE = storedROEPercent !== 0 ? storedROEPercent : computedROE;
+    if (bankROE > 0) {
+      roic = bankROE;
+    }
+  }
 
   // 5. Free Cash Flow (FCF) Margin
   const fcf = safeNum(cash.freeCashFlow) || (safeNum(cash.operatingCashFlow) - safeNum(cash.capitalExpenditure));
@@ -107,7 +120,7 @@ export function calculateCore8Metrics(report: CompanyReport): Core8Metrics {
   const capex = safeNum(cash.capitalExpenditure);
   const capexToDepreciation = depreciation > 0 ? capex / depreciation : capex > 0 ? 2.0 : 1.0;
 
-  // 11. Altman Z-Score
+  // 11. Altman Z-Score / Sector-Aware Financial Health Score
   const curAssets = safeNum(bal.currentAssets);
   const curLiab = safeNum(bal.currentLiabilities) || (safeNum(bal.totalLiabilities) - ltDebt);
   const workingCapital = curAssets - curLiab;
@@ -119,7 +132,22 @@ export function calculateCore8Metrics(report: CompanyReport): Core8Metrics {
   const x4 = safeNum(bal.totalLiabilities) > 0 ? totalEquity / safeNum(bal.totalLiabilities) : 2.0;
   const x5 = totalAssets > 0 ? revenue / totalAssets : 0;
 
-  const altmanZScore = 1.2 * x1 + 1.4 * x2 + 3.3 * x3 + 0.6 * x4 + 0.999 * x5;
+  let altmanZScore = 0;
+  if (isBankSector) {
+    // Bank Financial Health Model Proxy (Tier 1 & Equity Adequacy scaled to Z-Score range)
+    const equityToAssets = totalAssets > 0 ? (totalEquity / totalAssets) : 0.10;
+    const roa = totalAssets > 0 ? (safeNum(inc.netProfit) / totalAssets) * factor : 0.015;
+    const equityToLiab = safeNum(bal.totalLiabilities) > 0 ? totalEquity / safeNum(bal.totalLiabilities) : 0.12;
+    altmanZScore = (equityToAssets * 25) + (roa * 100) + (equityToLiab * 5);
+  } else if (sectorTag.includes("REIT") || sectorTag.includes("PROPERTY") || sectorTag.includes("HEALTHCARE")) {
+    // Asset-Heavy Solvency Health Proxy
+    const debtToAssets = totalAssets > 0 ? (totalDebt / totalAssets) : 0.35;
+    const roa = totalAssets > 0 ? (ebit / totalAssets) * factor : 0.05;
+    const eqLiab = safeNum(bal.totalLiabilities) > 0 ? totalEquity / safeNum(bal.totalLiabilities) : 1.0;
+    altmanZScore = Math.max(1.2, (3.5 - debtToAssets * 3) + (roa * 20) + (eqLiab * 0.4));
+  } else {
+    altmanZScore = 1.2 * x1 + 1.4 * x2 + 3.3 * x3 + 0.6 * x4 + 0.999 * x5;
+  }
 
   return {
     roic: isNaN(roic) ? 0 : roic,
@@ -151,6 +179,38 @@ export function calculateSectorMetrics(report: CompanyReport, sector: string): S
   const debt = safeNum(bal.shortTermDebt) + safeNum(bal.longTermDebt);
 
   const sec = (sector || "").toUpperCase();
+  const companyName = (report.Metadata?.CompanyName || "").toUpperCase();
+  const isTelco = sec.includes("TELCO") || sec.includes("TELECOM") || sec.includes("COMMUNICATION") || companyName.includes("MAXIS");
+
+  if (isTelco) {
+    const ebitda = safeNum(inc.ebitda) || (safeNum(inc.ebit || inc.operatingProfit) + safeNum(inc.depreciation));
+    const ebitdaMargin = rev > 0 ? (ebitda / rev) * 100 : 0;
+    const capex = safeNum(cash.capitalExpenditure);
+    const capexIntensity = rev > 0 ? (capex / rev) * 100 : 0;
+    const netDebt = (safeNum(bal.shortTermDebt) + safeNum(bal.longTermDebt)) - safeNum(bal.cashAndEquivalents);
+    const netDebtToEbitda = ebitda > 0 ? netDebt / ebitda : 0;
+
+    return [
+      {
+        id: "ebitda_margin",
+        label: "EBITDA Margin Integrity",
+        value: `${ebitdaMargin.toFixed(1)}%`,
+        rating: ebitdaMargin >= 40 ? "Strong" : ebitdaMargin >= 25 ? "Moderate" : "Weak"
+      },
+      {
+        id: "capex_intensity",
+        label: "CapEx Intensity Ratio",
+        value: `${capexIntensity.toFixed(1)}%`,
+        rating: capexIntensity <= 18 ? "Strong" : capexIntensity <= 25 ? "Moderate" : "Weak"
+      },
+      {
+        id: "net_debt_ebitda",
+        label: "Leverage (Net Debt / EBITDA)",
+        value: `${netDebtToEbitda.toFixed(2)}x`,
+        rating: netDebtToEbitda <= 2.0 ? "Strong" : netDebtToEbitda <= 3.5 ? "Moderate" : "Weak"
+      }
+    ];
+  }
 
   if (sec.includes("TECH") || sec.includes("SOFTWARE")) {
     const rd = safeNum(inc.researchDevelopment);
@@ -350,12 +410,20 @@ export function calculateScoring(report: CompanyReport, sector: string): Scoring
   }
 
   // Dividend yield / yield score (max 20)
-  const divY = safeNum(report.Financials.ratios?.dividendYield || report.Financials.advanced?.fcfYield);
+  const rawDivY = safeNum(report.Financials.ratios?.dividendYield || report.Financials.advanced?.fcfYield);
+  const divY = rawDivY > 0 ? (rawDivY < 1 ? rawDivY * 100 : rawDivY) : 0;
+  const payoutRatio = safeNum(report.Financials.ratios?.dividendPayoutRatio);
+
   if (divY >= 5.5) valuationScore += 20;
   else if (divY >= 2.5) valuationScore += 12;
   else if (divY >= 0.5) valuationScore += 6;
-  else {
-    valuationScore += c8.roic >= 12 ? 15 : 6;
+  else if (payoutRatio >= 0.35 || c8.roic >= 10 || qualityScore >= 65) {
+    // Robust yield proxy: healthy dividend payout or solid capital return profile when share price is unlisted
+    valuationScore += 15;
+  } else if (c8.roic >= 7 || qualityScore >= 50) {
+    valuationScore += 10;
+  } else {
+    valuationScore += 5;
   }
 
   const companyQualityScore = Math.round(Math.min(100, Math.max(0, qualityScore)));

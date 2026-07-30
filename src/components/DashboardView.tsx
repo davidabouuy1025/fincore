@@ -970,12 +970,20 @@ ${growth >= 0
               There are no {dashboardPeriodFilter} financial reports stored for sector <span className="font-semibold">{sector}</span> ({year}). Upload {dashboardPeriodFilter} condensed interim statements in the Ingest tab to enable this view.
             </p>
           </div>
-          <button
-            onClick={() => setView("upload")}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-teal-800 text-white dark:text-teal-400 hover:bg-teal-700 transition-colors cursor-pointer"
-          >
-            Go to Ingest Tab <ArrowRight className="w-3.5 h-3.5" />
-          </button>
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+            <button
+              onClick={() => setDashboardPeriodFilter(dashboardPeriodFilter === "quarterly" ? "annual" : "quarterly")}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold border border-hacker-border/60 bg-slate-100 dark:bg-hacker-bg text-hacker-text-main hover:border-teal-600 transition-colors cursor-pointer"
+            >
+              Switch to {dashboardPeriodFilter === "quarterly" ? "Annual" : "Quarterly"} Filter
+            </button>
+            <button
+              onClick={() => setView("upload")}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-teal-800 text-white dark:text-teal-400 hover:bg-teal-700 transition-colors cursor-pointer"
+            >
+              Go to Ingest Tab <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       ) : (
         <>
@@ -1436,7 +1444,9 @@ ${growth >= 0
                           }
 
                           let displayVal = "";
-                          const normalizedRatioVal = (val > 0 && val <= 1.5) ? val * 100 : val;
+                          const normalizedRatioVal = (item.id === "dividendPayoutRatio") 
+                            ? (val <= 15 ? val * 100 : val) 
+                            : ((val > 0 && val <= 1.5) ? val * 100 : val);
                           const isAnomalousPayout = item.id === "dividendPayoutRatio" && normalizedRatioVal > 150;
 
                           if (item.cat === "ratios") {
