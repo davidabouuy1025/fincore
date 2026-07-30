@@ -66,9 +66,22 @@ export function calculateCore8Metrics(report: CompanyReport): Core8Metrics {
   
   const investedCapital = totalDebt + totalEquity - cashAndEquiv;
   const storedROIC = safeNum(rat.roic);
-  const storedROICPercent = storedROIC !== 0 ? storedROIC * 100 : 0;
+  const storedROICPercent = storedROIC !== 0 ? (storedROIC < 1 ? storedROIC * 100 : storedROIC) * factor : 0;
   const computedROIC = investedCapital > 0 ? (nopat / investedCapital) * 100 * factor : 0;
-  const roic = storedROICPercent !== 0 ? storedROICPercent : computedROIC;
+  let roic = storedROICPercent !== 0 ? storedROICPercent : computedROIC;
+
+  // Sector check for Financial Services / Bank sector: ROE is the true return metric for banks
+  const sectorTag = (report.Metadata?.Sector || "").toUpperCase();
+  const isBankSector = sectorTag.includes("FINANCIAL") || sectorTag.includes("BANK");
+  if (isBankSector) {
+    const rawROE = safeNum(rat.roe);
+    const storedROEPercent = rawROE !== 0 ? (rawROE < 1 ? rawROE * 100 : rawROE) * factor : 0;
+    const computedROE = totalEquity > 0 ? (safeNum(inc.netProfit) / totalEquity) * 100 * factor : 0;
+    const bankROE = storedROEPercent !== 0 ? storedROEPercent : computedROE;
+    if (bankROE > 0) {
+      roic = bankROE;
+    }
+  }
 
   // 5. Free Cash Flow (FCF) Margin
   const fcf = safeNum(cash.freeCashFlow) || (safeNum(cash.operatingCashFlow) - safeNum(cash.capitalExpenditure));

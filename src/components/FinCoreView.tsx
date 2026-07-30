@@ -173,8 +173,11 @@ export function FinCoreView({
   const overallGrade = getGrade(overallScoreAvg);
 
   // WACC & EVA Calculations
-  const WACC = 8.5; // Standard benchmark percentage
-  const roicSpread = core8.roic - WACC;
+  const isBankSector = (selectedReport?.Metadata?.Sector || sector || "").toUpperCase().includes("FINANCIAL") || (selectedReport?.Metadata?.Sector || sector || "").toUpperCase().includes("BANK");
+  const hurdleRate = isBankSector ? 10.5 : 8.5; // Cost of Equity benchmark for banks (10.5%) vs WACC for corporates (8.5%)
+  const costLabel = isBankSector ? "Ke" : "WACC";
+  const returnLabel = isBankSector ? "ROE" : "ROIC";
+  const roicSpread = core8.roic - hurdleRate;
 
   // Calculate invested capital
   const stDebt = useMemo(() => {
@@ -219,10 +222,10 @@ export function FinCoreView({
       const pTag = p !== "ANNUAL" ? ` ${p}` : "";
       return {
         label: `${rep.Metadata?.FinancialYear || year}${pTag}`,
-        spread: repCore8.roic - WACC,
+        spread: repCore8.roic - hurdleRate,
       };
     });
-  }, [activeCompanyReports, roicSpread, selectedReport, year]);
+  }, [activeCompanyReports, hurdleRate, roicSpread, selectedReport, year]);
 
   // Peer Comparisons
   const peerListWithScores = useMemo(() => {
@@ -283,8 +286,8 @@ export function FinCoreView({
     const weaknesses: string[] = [];
     const watchItems: string[] = [];
 
-    if (core8.roic > WACC) strengths.push("Economic Moat: ROIC exceeds WACC, proving positive shareholder value creation.");
-    else weaknesses.push("Sub-Par Returns: ROIC underperforms the cost of capital, compounding capital destruction.");
+    if (core8.roic > hurdleRate) strengths.push(`Economic Moat: ${returnLabel} exceeds ${costLabel}, proving positive shareholder value creation.`);
+    else weaknesses.push(`Sub-Par Returns: ${returnLabel} underperforms the cost of capital, compounding capital destruction.`);
 
     if (core8.altmanZScore >= 2.9) strengths.push("Outstanding Balance Sheet: Financial distress risk is near non-existent.");
     else if (core8.altmanZScore < 1.2) weaknesses.push("Severe Solvency Warning: Altman Z-Score indicates distress risk bounds.");
@@ -294,7 +297,7 @@ export function FinCoreView({
     else if (core8.fcfMargin < 2) weaknesses.push("Asset Intensity Leak: Cash conversion is restricted by heavy CapEx.");
 
     return { strengths, weaknesses, watchItems };
-  }, [selectedReport, core8.roic, core8.altmanZScore, core8.fcfMargin]);
+  }, [selectedReport, core8.roic, core8.altmanZScore, core8.fcfMargin, hurdleRate, returnLabel, costLabel]);
 
   const sectorsList = [
     "TECHNOLOGY",
@@ -673,9 +676,9 @@ export function FinCoreView({
             <span className="text-[8px] uppercase tracking-widest font-black text-hacker-text-muted block mb-1">
               CAPITAL COST SPREAD
             </span>
-            <h3 className="text-xs font-bold text-hacker-text-submain">WACC vs ROIC</h3>
+            <h3 className="text-xs font-bold text-hacker-text-submain">{costLabel} vs {returnLabel}</h3>
             <p className="text-lg font-black font-mono mt-1 text-hacker-text-main">
-              {WACC}% <span className="text-hacker-text-muted text-xs font-normal">WACC</span> vs {core8.roic.toFixed(1)}% <span className="text-hacker-text-muted text-xs font-normal">ROIC</span>
+              {hurdleRate}% <span className="text-hacker-text-muted text-xs font-normal">{costLabel}</span> vs {core8.roic.toFixed(1)}% <span className="text-hacker-text-muted text-xs font-normal">{returnLabel}</span>
             </p>
             <span className={cn(
               "text-[10px] font-bold inline-block px-1.5 py-0.5 rounded-lg mt-2",
