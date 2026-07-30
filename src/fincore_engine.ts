@@ -120,7 +120,7 @@ export function calculateCore8Metrics(report: CompanyReport): Core8Metrics {
   const capex = safeNum(cash.capitalExpenditure);
   const capexToDepreciation = depreciation > 0 ? capex / depreciation : capex > 0 ? 2.0 : 1.0;
 
-  // 11. Altman Z-Score
+  // 11. Altman Z-Score / Sector-Aware Financial Health Score
   const curAssets = safeNum(bal.currentAssets);
   const curLiab = safeNum(bal.currentLiabilities) || (safeNum(bal.totalLiabilities) - ltDebt);
   const workingCapital = curAssets - curLiab;
@@ -132,7 +132,22 @@ export function calculateCore8Metrics(report: CompanyReport): Core8Metrics {
   const x4 = safeNum(bal.totalLiabilities) > 0 ? totalEquity / safeNum(bal.totalLiabilities) : 2.0;
   const x5 = totalAssets > 0 ? revenue / totalAssets : 0;
 
-  const altmanZScore = 1.2 * x1 + 1.4 * x2 + 3.3 * x3 + 0.6 * x4 + 0.999 * x5;
+  let altmanZScore = 0;
+  if (isBankSector) {
+    // Bank Financial Health Model Proxy (Tier 1 & Equity Adequacy scaled to Z-Score range)
+    const equityToAssets = totalAssets > 0 ? (totalEquity / totalAssets) : 0.10;
+    const roa = totalAssets > 0 ? (safeNum(inc.netProfit) / totalAssets) * factor : 0.015;
+    const equityToLiab = safeNum(bal.totalLiabilities) > 0 ? totalEquity / safeNum(bal.totalLiabilities) : 0.12;
+    altmanZScore = (equityToAssets * 25) + (roa * 100) + (equityToLiab * 5);
+  } else if (sectorTag.includes("REIT") || sectorTag.includes("PROPERTY") || sectorTag.includes("HEALTHCARE")) {
+    // Asset-Heavy Solvency Health Proxy
+    const debtToAssets = totalAssets > 0 ? (totalDebt / totalAssets) : 0.35;
+    const roa = totalAssets > 0 ? (ebit / totalAssets) * factor : 0.05;
+    const eqLiab = safeNum(bal.totalLiabilities) > 0 ? totalEquity / safeNum(bal.totalLiabilities) : 1.0;
+    altmanZScore = Math.max(1.2, (3.5 - debtToAssets * 3) + (roa * 20) + (eqLiab * 0.4));
+  } else {
+    altmanZScore = 1.2 * x1 + 1.4 * x2 + 3.3 * x3 + 0.6 * x4 + 0.999 * x5;
+  }
 
   return {
     roic: isNaN(roic) ? 0 : roic,
