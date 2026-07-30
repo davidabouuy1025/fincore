@@ -410,12 +410,20 @@ export function calculateScoring(report: CompanyReport, sector: string): Scoring
   }
 
   // Dividend yield / yield score (max 20)
-  const divY = safeNum(report.Financials.ratios?.dividendYield || report.Financials.advanced?.fcfYield);
+  const rawDivY = safeNum(report.Financials.ratios?.dividendYield || report.Financials.advanced?.fcfYield);
+  const divY = rawDivY > 0 ? (rawDivY < 1 ? rawDivY * 100 : rawDivY) : 0;
+  const payoutRatio = safeNum(report.Financials.ratios?.dividendPayoutRatio);
+
   if (divY >= 5.5) valuationScore += 20;
   else if (divY >= 2.5) valuationScore += 12;
   else if (divY >= 0.5) valuationScore += 6;
-  else {
-    valuationScore += c8.roic >= 12 ? 15 : 6;
+  else if (payoutRatio >= 0.35 || c8.roic >= 10 || qualityScore >= 65) {
+    // Robust yield proxy: healthy dividend payout or solid capital return profile when share price is unlisted
+    valuationScore += 15;
+  } else if (c8.roic >= 7 || qualityScore >= 50) {
+    valuationScore += 10;
+  } else {
+    valuationScore += 5;
   }
 
   const companyQualityScore = Math.round(Math.min(100, Math.max(0, qualityScore)));
