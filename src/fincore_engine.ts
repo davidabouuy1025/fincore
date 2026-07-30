@@ -179,6 +179,38 @@ export function calculateSectorMetrics(report: CompanyReport, sector: string): S
   const debt = safeNum(bal.shortTermDebt) + safeNum(bal.longTermDebt);
 
   const sec = (sector || "").toUpperCase();
+  const companyName = (report.Metadata?.CompanyName || "").toUpperCase();
+  const isTelco = sec.includes("TELCO") || sec.includes("TELECOM") || sec.includes("COMMUNICATION") || companyName.includes("MAXIS");
+
+  if (isTelco) {
+    const ebitda = safeNum(inc.ebitda) || (safeNum(inc.ebit || inc.operatingProfit) + safeNum(inc.depreciation));
+    const ebitdaMargin = rev > 0 ? (ebitda / rev) * 100 : 0;
+    const capex = safeNum(cash.capitalExpenditure);
+    const capexIntensity = rev > 0 ? (capex / rev) * 100 : 0;
+    const netDebt = (safeNum(bal.shortTermDebt) + safeNum(bal.longTermDebt)) - safeNum(bal.cashAndEquivalents);
+    const netDebtToEbitda = ebitda > 0 ? netDebt / ebitda : 0;
+
+    return [
+      {
+        id: "ebitda_margin",
+        label: "EBITDA Margin Integrity",
+        value: `${ebitdaMargin.toFixed(1)}%`,
+        rating: ebitdaMargin >= 40 ? "Strong" : ebitdaMargin >= 25 ? "Moderate" : "Weak"
+      },
+      {
+        id: "capex_intensity",
+        label: "CapEx Intensity Ratio",
+        value: `${capexIntensity.toFixed(1)}%`,
+        rating: capexIntensity <= 18 ? "Strong" : capexIntensity <= 25 ? "Moderate" : "Weak"
+      },
+      {
+        id: "net_debt_ebitda",
+        label: "Leverage (Net Debt / EBITDA)",
+        value: `${netDebtToEbitda.toFixed(2)}x`,
+        rating: netDebtToEbitda <= 2.0 ? "Strong" : netDebtToEbitda <= 3.5 ? "Moderate" : "Weak"
+      }
+    ];
+  }
 
   if (sec.includes("TECH") || sec.includes("SOFTWARE")) {
     const rd = safeNum(inc.researchDevelopment);
