@@ -1,18 +1,18 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, lazy, Suspense } from "react";
 import { TrendingUp, Plus, BarChart3, History, ShieldCheck, Newspaper } from "lucide-react";
 import { AnimatePresence } from "motion/react";
 import { ParsedDocument, CompanyReport, ArchiveEntry, Financials } from "./types";
 import { NavBtn } from "./components/NavBtn";
-import { UploadView } from "./components/UploadView";
-import { DashboardView } from "./components/DashboardView";
 import { DocumentViewerOverlay } from "./components/DocumentViewerOverlay";
-import { NewsView } from "./components/NewsView";
-import { FinCoreView } from "./components/FinCoreView";
-import { InfoView } from "./components/InfoView";
 import { ThemeToggle } from "./components/ThemeToggle";
 import SplashCursor from "./components/SplashCursor";
 import InteractiveGrid from "./components/InteractiveGrid";
-import { style } from "motion/react-client";
+
+const UploadView = lazy(() => import("./components/UploadView").then(m => ({ default: m.UploadView })));
+const DashboardView = lazy(() => import("./components/DashboardView").then(m => ({ default: m.DashboardView })));
+const FinCoreView = lazy(() => import("./components/FinCoreView").then(m => ({ default: m.FinCoreView })));
+const NewsView = lazy(() => import("./components/NewsView").then(m => ({ default: m.NewsView })));
+const InfoView = lazy(() => import("./components/InfoView").then(m => ({ default: m.InfoView })));
 
 export default function App() {
   const [reports, setReports] = useState<CompanyReport[]>([]);
@@ -387,78 +387,85 @@ export default function App() {
       </nav>
 
       <main className="ml-[75px] min-h-screen relative z-10">
-        <AnimatePresence mode="wait">
-          {view === "upload" && (
-            <UploadView
-              key="upload"
-              uploadStep={uploadStep}
-              year={year}
-              setYear={setYear}
-              sector={sector}
-              setSector={setSector}
-              dragOver={dragOver}
-              setDragOver={setDragOver}
-              pendingFiles={pendingFiles}
-              setPendingFiles={setPendingFiles}
-              isParsing={isParsing}
-              isSaving={isSaving}
-              parsedDocuments={parsedDocuments}
-              handleDrop={handleDrop}
-              handleFileChange={handleFileChange}
-              handleParse={handleParse}
-              handleSaveAll={handleSaveAll}
-              setUploadStep={setUploadStep}
-              updateDocumentName={updateDocumentName}
-              updateDocumentField={updateDocumentField}
-              updateDocumentYear={updateDocumentYear}
-              updateDocumentSector={updateDocumentSector}
-              toggleDocumentExpanded={toggleDocumentExpanded}
-              removeDocument={removeDocument}
-              addMoreDocuments={addMoreDocuments}
-              useAi={useAi}
-              setUseAi={setUseAi}
-              loadReports={loadReports}
-              fetchArchive={fetchArchive}
-            />
-          )}
+        <Suspense fallback={
+          <div className="min-h-screen flex items-center justify-center p-8 text-xs font-mono text-emerald-500 gap-3">
+            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+            <span>INITIALIZING FINCORE ENGINE...</span>
+          </div>
+        }>
+          <AnimatePresence mode="wait">
+            {view === "upload" && (
+              <UploadView
+                key="upload"
+                uploadStep={uploadStep}
+                year={year}
+                setYear={setYear}
+                sector={sector}
+                setSector={setSector}
+                dragOver={dragOver}
+                setDragOver={setDragOver}
+                pendingFiles={pendingFiles}
+                setPendingFiles={setPendingFiles}
+                isParsing={isParsing}
+                isSaving={isSaving}
+                parsedDocuments={parsedDocuments}
+                handleDrop={handleDrop}
+                handleFileChange={handleFileChange}
+                handleParse={handleParse}
+                handleSaveAll={handleSaveAll}
+                setUploadStep={setUploadStep}
+                updateDocumentName={updateDocumentName}
+                updateDocumentField={updateDocumentField}
+                updateDocumentYear={updateDocumentYear}
+                updateDocumentSector={updateDocumentSector}
+                toggleDocumentExpanded={toggleDocumentExpanded}
+                removeDocument={removeDocument}
+                addMoreDocuments={addMoreDocuments}
+                useAi={useAi}
+                setUseAi={setUseAi}
+                loadReports={loadReports}
+                fetchArchive={fetchArchive}
+              />
+            )}
 
-          {view === "dashboard" && (
-            <DashboardView
-              key="dashboard"
-              reports={reports}
-              sector={sector}
-              year={year}
-              setView={setView}
-              setSelectedReport={setSelectedReport}
-              generateAIInsights={generateAIInsights}
-              isGeneratingAi={isGeneratingAi}
-              aiInsight={aiInsight}
-              archive={archive}
-              loadReports={loadReports}
-            />
-          )}
+            {view === "dashboard" && (
+              <DashboardView
+                key="dashboard"
+                reports={reports}
+                sector={sector}
+                year={year}
+                setView={setView}
+                setSelectedReport={setSelectedReport}
+                generateAIInsights={generateAIInsights}
+                isGeneratingAi={isGeneratingAi}
+                aiInsight={aiInsight}
+                archive={archive}
+                loadReports={loadReports}
+              />
+            )}
 
-          {view === "fincore" && (
-            <FinCoreView
-              key="fincore"
-              reports={reports}
-              sector={sector}
-              year={year}
-              setView={setView}
-              setSelectedReport={setSelectedReport}
-              archive={archive}
-              loadReports={loadReports}
-            />
-          )}
+            {view === "fincore" && (
+              <FinCoreView
+                key="fincore"
+                reports={reports}
+                sector={sector}
+                year={year}
+                setView={setView}
+                setSelectedReport={setSelectedReport}
+                archive={archive}
+                loadReports={loadReports}
+              />
+            )}
 
-          {view === "news" && (
-            <NewsView key="news" />
-          )}
+            {view === "news" && (
+              <NewsView key="news" />
+            )}
 
-          {view === "info" && (
-            <InfoView key="info" />
-          )}
-        </AnimatePresence>
+            {view === "info" && (
+              <InfoView key="info" />
+            )}
+          </AnimatePresence>
+        </Suspense>
       </main>
 
       <AnimatePresence>
