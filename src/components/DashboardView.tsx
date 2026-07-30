@@ -1436,7 +1436,9 @@ ${growth >= 0
                           }
 
                           let displayVal = "";
-                          const normalizedRatioVal = (val > 0 && val <= 1.5) ? val * 100 : val;
+                          const normalizedRatioVal = (item.id === "dividendPayoutRatio") 
+                            ? (val <= 15 ? val * 100 : val) 
+                            : ((val > 0 && val <= 1.5) ? val * 100 : val);
                           const isAnomalousPayout = item.id === "dividendPayoutRatio" && normalizedRatioVal > 150;
 
                           if (item.cat === "ratios") {
