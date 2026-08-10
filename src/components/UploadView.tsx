@@ -155,6 +155,7 @@ export function UploadView({
   const [hasApiKey, setHasApiKey] = useState<boolean>(false);
   const [isExtractingAi, setIsExtractingAi] = useState<boolean>(false);
   const [detectedCompanyName, setDetectedCompanyName] = useState<string>("");
+  const [aiModel, setAiModel] = useState<string>("gemini-3.6-flash");
 
   useEffect(() => {
     fetch("/api/ai-status")
@@ -489,30 +490,34 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           markdown: convertedMarkdown,
-          storedFileName: tempUploadedFileName
+          storedFileName: tempUploadedFileName,
+          model: aiModel
         })
       });
       const data = await res.json();
       if (data.success && data.extractedFinancials) {
+        const metadata = data.extractedFinancials.metadata || {};
+        const financials = data.extractedFinancials.financials || data.extractedFinancials;
+
         const fullPayload = {
-          companyName: detectedCompanyName || (mdFile?.name ? mdFile.name.split(".")[0] : ""),
-          year: selectedMdYear,
-          period: selectedMdPeriod,
-          currency: selectedMdCurrency,
-          sector: reviewSector,
+          companyName: metadata.companyName || detectedCompanyName || (mdFile?.name ? mdFile.name.split(".")[0] : ""),
+          year: metadata.year || selectedMdYear,
+          period: metadata.period || selectedMdPeriod,
+          currency: metadata.currency || selectedMdCurrency || "MYR",
+          sector: metadata.sector || reviewSector || "TECHNOLOGY",
           originalFileName: mdFile?.name || "",
           storedFileName: tempUploadedFileName || mdFile?.name || "",
           docType: "DIGITAL_PDF",
           selectedPages: mdSelectedPages,
-          financials: data.extractedFinancials
+          financials: financials
         };
         setUserPastedJson(JSON.stringify(fullPayload, null, 2));
       } else {
-        throw new Error(data.error || "Failed to extract financials with AI.");
+        throw new Error(data.error || "Failed to extract financials with Gemini 3.6 Flash.");
       }
     } catch (err: any) {
-      console.error("[ERROR] AI extraction failed:", err);
-      setIngestStatus({ type: "error", message: err.message || "AI extraction failed." });
+      console.error("[ERROR] Gemini 3.6 Flash extraction failed:", err);
+      setIngestStatus({ type: "error", message: err.message || "Gemini 3.6 Flash extraction failed." });
     } finally {
       setIsExtractingAi(false);
     }
@@ -1392,10 +1397,10 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
               {/* Introduction Card */}
               <div className="bg-white dark:bg-hacker-card-bg border border-black dark:border-zinc-850 p-5 rounded-2xl text-xs space-y-2 leading-relaxed">
                 <h3 className="font-extrabold uppercase text-black dark:text-teal-400 tracking-wider flex items-center gap-1.5">
-                  <Sparkles className="w-4 h-4 text-emerald-800 animate-pulse" /> Markdown Conversion & External JSON Ingest Pipeline
+                  <Sparkles className="w-4 h-4 text-emerald-800 animate-pulse" /> Markdown Conversion & Gemini 3.6 Flash Ingest Pipeline
                 </h3>
                 <p className="text-black dark:text-zinc-400">
-                  Upload any corporate financial report (PDF or Image), specify your target page selection, convert it to raw markdown, and copy-paste it with our pre-configured AI prompt template to generate structured JSON externally. Paste your generated JSON in the final stage to automatically serialize and save it directly into the database as standard XML.
+                  Upload any corporate financial report (PDF or Image), specify your page selection, convert it into markdown, and leverage <strong className="text-emerald-600 dark:text-teal-400">Gemini 3.6 Flash</strong> to automatically extract structured financial JSON data directly into Fincore or preview with custom prompts.
                 </p>
               </div>
 
@@ -1652,8 +1657,17 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
                   <div className="flex items-center gap-2">
                     <Sparkles className="w-4 h-4 text-emerald-500 animate-pulse" />
                     <h3 className="text-xs font-black uppercase text-slate-700 dark:text-teal-400 tracking-wider">
-                      AI Extraction Prompt Template
+                      Gemini 3.6 Flash Extraction Prompt & Ingest
                     </h3>
+                    <select
+                      value={aiModel}
+                      onChange={(e) => setAiModel(e.target.value)}
+                      className="text-[9px] bg-emerald-500/10 text-emerald-600 dark:text-teal-400 border border-emerald-500/25 px-2 py-0.5 rounded-full font-bold outline-none cursor-pointer hover:bg-emerald-500/20 transition-colors"
+                    >
+                      <option value="gemini-3.6-flash">Model: Gemini 3.6 Flash</option>
+                      <option value="gemini-1.5-pro">Model: Gemini 1.5 Pro</option>
+                      <option value="gemini-1.5-flash">Model: Gemini 1.5 Flash</option>
+                    </select>
                   </div>
                   {hasApiKey ? (
                     <div className="flex items-center gap-3">
@@ -1683,11 +1697,11 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
                       >
                         {isExtractingAi ? (
                           <>
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" /> Extracting with AI...
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" /> Extracting with Gemini 3.6 Flash...
                           </>
                         ) : (
                           <>
-                            <Sparkles className="w-3.5 h-3.5" /> Extract All
+                            <Sparkles className="w-3.5 h-3.5" /> Extract All with Gemini 3.6 Flash
                           </>
                         )}
                       </button>
@@ -1723,7 +1737,7 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
                 <div className="space-y-4 text-xs leading-relaxed text-slate-600 dark:text-zinc-300">
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
                     <p className="text-[10px] text-slate-400 dark:text-zinc-400 leading-normal">
-                      Copy the custom prompt using the button above. The visualizer below shows the structured template with a placeholder for the extracted markdown to keep it clean.
+                      Click <strong>"Extract All with Gemini 3.6 Flash"</strong> to run automated AI extraction directly into Fincore JSON schema format, or copy the custom prompt template below for manual processing.
                     </p>
                   </div>
 

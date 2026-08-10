@@ -197,7 +197,7 @@ export class ReportController {
    */
   reanalyze = async (req: Request, res: Response) => {
     try {
-      const { storedFileName, markdown } = req.body;
+      const { storedFileName, markdown, model } = req.body;
 
       let sourceMarkdown = typeof markdown === "string" ? markdown : "";
       if (!sourceMarkdown.trim() && storedFileName) {
@@ -225,11 +225,18 @@ export class ReportController {
 
       let extractedFinancials;
       try {
-        extractedFinancials = await this.aiService.extractFinancialsWithGemini(sourceMarkdown);
+        extractedFinancials = await this.aiService.extractFinancialsWithGemini(sourceMarkdown, model);
       } catch (aiErr) {
         console.error("[WARN] Gemini re-analysis failed, using local markdown extraction:", aiErr);
         const extracted = this.extractionService.processFinancials(sourceMarkdown, storedFileName || "document.pdf");
-        extractedFinancials = this.extractionService.extractedDataToFinancials(extracted.extractedData);
+        extractedFinancials = {
+          metadata: {
+            companyName: extracted.companyName,
+            year: extracted.year,
+            period: extracted.suggestedPeriod
+          },
+          financials: this.extractionService.extractedDataToFinancials(extracted.extractedData)
+        };
       }
 
       return res.json({ success: true, extractedFinancials });

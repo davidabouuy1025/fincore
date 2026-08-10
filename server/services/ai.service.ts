@@ -46,7 +46,7 @@ export class AiService implements IAiService {
         )}`;
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${encodeURIComponent(apiKey)}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -73,7 +73,7 @@ export class AiService implements IAiService {
    * Re-analyzes standard financial structures from raw Markdown using Google's Gemini Model.
    * Matches the native Gemini payload format used in server.ts.
    */
-  public async extractFinancialsWithGemini(markdown: string): Promise<any> {
+  public async extractFinancialsWithGemini(markdown: string, model: string = "gemini-3.6-flash"): Promise<any> {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       throw new Error("GEMINI_API_KEY not configured");
@@ -85,28 +85,115 @@ export class AiService implements IAiService {
 
     const prompt = `You are a professional financial analyst extracting financial statement values from markdown text.
 First, detect the reporting Currency and Unit of the tables (e.g., USD, MYR, EUR, CNY, and whether it is in thousands '000, millions 'M' or single units).
-Normalize the extracted values to match the reporting scale of the document (do NOT multiply or divide values yourself, extract them as they appear in the tables).
+Normalize the extracted values to their absolute amounts. If the document reports in thousands ('000) or millions ('M'), you MUST multiply the values accordingly (e.g. 12,575,978 in thousands becomes 12575978000).
 If this is a quarterly interim financial report (Q1, Q2, Q3, Q4), extract the cumulative Year-To-Date (YTD / 6 months / 9 months) figures rather than individual 3-month single-quarter numbers whenever both are present.
-Return only valid JSON in this exact shape:
+Return only valid JSON in this exact shape, populating the categories with the extracted values for each field. Use the formula to calculate if any value is missing but derivable, else leave as 0. STRICTLY double check all the values ensuring that all the values are correct. Do not return empty objects:
 {
+  "companyName": "extracted company name",
+  "year": "extracted year",
+  "period": "extracted period",
   "financials": {
-    "incomeStatement": {},
-    "balanceSheet": {},
-    "cashFlow": {},
-    "ratios": {},
-    "growth": {},
-    "advanced": {}
+    "incomeStatement": {
+      "revenue": 0,
+      "nonOperatingRevenue": 0,
+      "costOfGoodsSold": 0,
+      "grossProfit": "revenue - costOfGoodsSold",
+      "operatingExpenses": 0,
+      "sgaExpenses": 0,
+      "researchDevelopment": 0,
+      "depreciation": 0,
+      "amortization": 0,
+      "operatingProfit": "grossProfit - operatingExpenses",
+      "financeIncome": 0,
+      "financeCost": 0,
+      "ebit": "profitBeforeTax + financeCost - financeIncome",
+      "ebitda": "ebit + depreciation + amortization",
+      "profitBeforeTax": "ebit + financeIncome - financeCost",
+      "taxExpense": 0,
+      "effectiveTaxRate": "taxExpense / profitBeforeTax",
+      "netProfit": "profitBeforeTax - taxExpense",
+      "retainedEarnings": 0
+    },
+    "balanceSheet": {
+      "totalAssets": "currentAssets + nonCurrentAssets",
+      "currentAssets": 0,
+      "nonCurrentAssets": 0,
+      "cashAndEquivalents": 0,
+      "accountsReceivable": 0,
+      "inventory": 0,
+      "shortTermInvestments": 0,
+      "ppe": 0,
+      "intangibleAssets": 0,
+      "goodwill": 0,
+      "totalLiabilities": "currentLiabilities + nonCurrentLiabilities",
+      "currentLiabilities": 0,
+      "accountsPayable": 0,
+      "shortTermDebt": 0,
+      "nonCurrentLiabilities": 0,
+      "longTermDebt": 0,
+      "bondsPayable": 0,
+      "totalEquity": "totalAssets - totalLiabilities",
+      "commonStock": 0,
+      "preferredStock": 0,
+      "paidInCapital": 0
+    },
+    "cashFlow": {
+      "operatingCashFlow": 0,
+      "investingCashFlow": 0,
+      "financingCashFlow": 0,
+      "capitalExpenditure": 0,
+      "freeCashFlow": 0
+    },
+    "ratios": {
+      "roe": "netProfit / totalEquity",
+      "roa": "netProfit / totalAssets",
+      "roic": "(ebit * (1 - effectiveTaxRate)) / (totalEquity + shortTermDebt + longTermDebt + bondsPayable - cashAndEquivalents - shortTermInvestments)",
+      "grossMargin": "grossProfit / revenue",
+      "operatingMargin": "operatingProfit / revenue",
+      "netProfitMargin": "netProfit / revenue",
+      "currentRatio": "currentAssets / currentLiabilities",
+      "quickRatio": "(cashAndEquivalents + shortTermInvestments + accountsReceivable) / currentLiabilities",
+      "cashRatio": "(cashAndEquivalents + shortTermInvestments) / currentLiabilities",
+      "debtToEquity": "(shortTermDebt + longTermDebt + bondsPayable) / totalEquity",
+      "debtRatio": "totalLiabilities / totalAssets",
+      "interestCoverage": "ebit / financeCost",
+      "assetTurnover": "revenue / totalAssets",
+      "inventoryTurnover": "costOfGoodsSold / inventory",
+      "receivablesTurnover": "revenue / accountsReceivable",
+      "payablesTurnover": "costOfGoodsSold / accountsPayable",
+      "eps": "netProfit / weightedAverageSharesOutstanding",
+      "dilutedEps": "netProfit / dilutedSharesOutstanding",
+      "peRatio": "sharePrice / eps",
+      "totalDividendPaid": 0,
+      "dividendYield": "dividendPerShare / sharePrice",
+      "dividendPerShare": "totalDividendPaid / sharesOutstanding",
+      "dividendPayoutRatio": "dividendPerShare / eps",
+      "retentionRatio": "1 - dividendPayoutRatio"
+    },
+    "growth": {
+      "revenueGrowth": "(currentRevenue - previousRevenue) / previousRevenue",
+      "netIncomeGrowth": "(currentNetProfit - previousNetProfit) / previousNetProfit",
+      "cagr": "((endingValue / beginningValue)^(1 / years)) - 1"
+    },
+    "advanced": {
+      "enterpriseValue": "marketCapitalization + shortTermDebt + longTermDebt + bondsPayable - cashAndEquivalents - shortTermInvestments",
+      "evEbitda": "enterpriseValue / ebitda",
+      "fcfYield": "freeCashFlow / marketCapitalization",
+      "eva": "(ebit * (1 - effectiveTaxRate)) - ((totalEquity + shortTermDebt + longTermDebt + bondsPayable - cashAndEquivalents - shortTermInvestments) * wacc)",
+      "workingCapital": "currentAssets - currentLiabilities",
+      "netWorkingCapital": "(currentAssets - cashAndEquivalents - shortTermInvestments) - (currentLiabilities - shortTermDebt)"
+    }
   }
 }
 
-Use these field ids and categories. Put string numbers only, without currency symbols or commas. Use null when not found.
+Use these field ids and categories. Put numbers only, without currency symbols or commas. Use 0 when not found.
 ${fieldList}
 
 MARKDOWN:
 ${markdown.slice(0, 120000)}`;
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -126,10 +213,16 @@ ${markdown.slice(0, 120000)}`;
     }
 
     const text = data.candidates?.[0]?.content?.parts?.map((part: any) => part.text || "").join("") || "";
+    console.log("[DEBUG] Gemini Raw Response:", text);
     const json = this.extractJsonObject(text);
-    if (!json) throw new Error("Gemini returned no JSON");
-
-    return this.normalizeAiFinancials(JSON.parse(json));
+    if (!json) {
+      console.log("[DEBUG] Failed to extract JSON from Gemini text");
+      throw new Error("Gemini returned no JSON");
+    }
+    
+    const parsed = JSON.parse(json);
+    console.log("[DEBUG] Gemini Parsed JSON:", parsed);
+    return this.normalizeAiFinancials(parsed);
   }
 
   /**
@@ -156,13 +249,26 @@ ${markdown.slice(0, 120000)}`;
     const financials = this.extractionService.extractedDataToFinancials(emptyData);
 
     for (const category of Object.keys(financials)) {
-      const categoryValues = source?.[category] || {};
+      const categoryValues = source?.[category] || source?.[category.toLowerCase()] || {};
       for (const fieldId of Object.keys(financials[category])) {
         const value = categoryValues[fieldId];
         financials[category][fieldId] = value === undefined || value === "" ? null : String(value);
       }
+
+      for (const [key, val] of Object.entries(categoryValues)) {
+        if (financials[category][key] === undefined && val !== undefined && val !== "" && val !== null) {
+          financials[category][key] = String(val);
+        }
+      }
     }
 
-    return financials;
+    return {
+      metadata: {
+        companyName: parsed?.companyName,
+        year: parsed?.year,
+        period: parsed?.period
+      },
+      financials
+    };
   }
 }

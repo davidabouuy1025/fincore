@@ -40,14 +40,27 @@ export class ExtractionService {
    * Leveraged by AiService for data normalization setups.
    */
   public createEmptyExtractedData(): Record<string, Record<string, ExtractedValue>> {
-    return {
+    const payload: Record<string, Record<string, ExtractedValue>> = {
       incomeStatement: {},
       balanceSheet: {},
       cashFlow: {},
       ratios: {},
       growth: {},
       advanced: {},
-    } as Record<string, Record<string, ExtractedValue>>;
+    };
+
+    for (const [fieldId, config] of Object.entries(FINANCIAL_DICTIONARY)) {
+      if (!payload[config.category]) {
+        payload[config.category] = {};
+      }
+      payload[config.category][fieldId] = {
+        value: null,
+        confidence: "low",
+        source: "Not found",
+      };
+    }
+
+    return payload;
   }
 
   /**
