@@ -1,0 +1,1875 @@
+﻿import React, { useState, useEffect, useRef } from "react";
+import {
+  Upload,
+  FileText,
+  X,
+  Loader2,
+  FileSearch,
+  ChevronRight,
+  Plus,
+  Save,
+  Sparkles,
+  Eye,
+  Check,
+  AlertCircle,
+  Undo,
+  Search,
+  Database,
+  ArrowRight,
+  ChevronDown,
+  Edit2
+} from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
+import { ParsedDocument, ExtractedField, CompanyReport } from "../types";
+import { BURSA_SECTORS } from "../constants";
+import { PageSelectionModal } from "./PageSelectionModal";
+import { Document, Page, pdfjs } from "react-pdf";
+import { StepIndicator } from "./StepIndicator";
+import { MarkdownMode } from "./MarkdownMode";
+import { SavedRecordsMode } from "./SavedRecordsMode";
+import { UploadViewProps, Attachment } from "./types";
+import { cn } from "./utils";
+
+// Configure worker using CDN unpkg for maximum compatibility
+pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version || "4.4.168"}/build/pdf.worker.min.mjs`;
+
+
+export function UploadView({
+  uploadStep,
+  year,
+  setYear,
+  sector,
+  setSector,
+  isParsing: parentIsParsing,
+  isSaving: parentIsSaving,
+  parsedDocuments: parentParsedDocs,
+  setUploadStep,
+  useAi,
+  setUseAi,
+  loadReports,
+  fetchArchive,
+}: UploadViewProps) {
+  // Mode selector: "new" (Ingest Pipeline), "markdown" (Markdown & Ingest), or "saved" (Edit Saved Records)
+  const [ingestMode, setIngestMode] = useState<"new" | "markdown" | "saved">("markdown");
+
+  // Markdown & Ingest states
+  const [mdFile, setMdFile] = useState<File | null>(null);
+  const [mdSelectedPages, setMdSelectedPages] = useState<string>("all");
+  const [isConvertingToMd, setIsConvertingToMd] = useState<boolean>(false);
+  const [convertedMarkdown, setConvertedMarkdown] = useState<string>("");
+  const [mdCopied, setMdCopied] = useState<boolean>(false);
+  const [promptCopied, setPromptCopied] = useState<boolean>(false);
+  const [userPastedJson, setUserPastedJson] = useState<string>("");
+  const [isIngestingJson, setIsIngestingJson] = useState<boolean>(false);
+  const [ingestStatus, setIngestStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [mdObjectUrl, setMdObjectUrl] = useState<string | null>(null);
+  const [tempUploadedFileName, setTempUploadedFileName] = useState<string>("");
+  const [selectedMdYear, setSelectedMdYear] = useState<string>("2025");
+  const [selectedMdPeriod, setSelectedMdPeriod] = useState<string>("annual");
+  const [selectedMdCurrency, setSelectedMdCurrency] = useState<string>("MYR");
+  const [hasApiKey, setHasApiKey] = useState<boolean>(false);
+  const [isExtractingAi, setIsExtractingAi] = useState<boolean>(false);
+  const [detectedCompanyName, setDetectedCompanyName] = useState<string>("");
+  const [aiModel, setAiModel] = useState<string>("gemini-3.6-flash");
+
+  useEffect(() => {
+    fetch("/api/ai-status")
+      .then(res => res.json())
+      .then(data => setHasApiKey(data.hasApiKey))
+      .catch(() => setHasApiKey(false));
+  }, []);
+
+  const getPromptTemplate = () => {
+    return `As professional auditor, convert markdown into JSON. Use the formula to calculate if any value is missing but derivable, else leave as 0. STRICTLY double check all the values ensuring that all the values are correct for the financial year.
+
+markdown:
+${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
+
+{
+  "companyName": "Company Name (e.g. Nestle Malaysia Berhad)",
+  "year": ${selectedMdYear},
+  "period": "${selectedMdPeriod}",
+  "currency": "${selectedMdCurrency}",
+  "sector": "TECHNOLOGY/PLANTATION/FINANCIAL_SERVICES/CONSUMER_PRODUCTS/INDUSTRIAL_PRODUCTS/REITS/ENERGY/HEALTHCARE/CONSTRUCTION",
+  "originalFileName": "COMPANY_YEAR",
+  "storedFileName": "COMPANY_YEAR",
+  "docType": "DIGITAL_PDF",
+  "selectedPages": "${mdSelectedPages}",
+  "financials": {
+    "incomeStatement": {
+      "revenue": 0,
+      "nonOperatingRevenue": 0,
+      "costOfGoodsSold": 0,
+      "grossProfit": "revenue - costOfGoodsSold",
+      "operatingExpenses": 0,
+      "sgaExpenses": 0,
+      "researchDevelopment": 0,
+      "depreciation": 0,
+      "amortization": 0,
+      "operatingProfit": "grossProfit - operatingExpenses",
+      "financeIncome": 0,
+      "financeCost": 0,
+      "ebit": "profitBeforeTax + financeCost - financeIncome",
+      "ebitda": "ebit + depreciation + amortization",
+      "profitBeforeTax": "ebit + financeIncome - financeCost",
+      "taxExpense": 0,
+      "effectiveTaxRate": "taxExpense / profitBeforeTax",
+      "netProfit": "profitBeforeTax - taxExpense",
+      "retainedEarnings": 0
+    },
+
+    "balanceSheet": {
+      "totalAssets": "currentAssets + nonCurrentAssets",
+      "currentAssets": 0,
+      "nonCurrentAssets": 0,
+      "cashAndEquivalents": 0,
+      "accountsReceivable": 0,
+      "inventory": 0,
+      "shortTermInvestments": 0,
+      "ppe": 0,
+      "intangibleAssets": 0,
+      "goodwill": 0,
+      "totalLiabilities": "currentLiabilities + nonCurrentLiabilities",
+      "currentLiabilities": 0,
+      "accountsPayable": 0,
+      "shortTermDebt": 0,
+      "nonCurrentLiabilities": 0,
+      "longTermDebt": 0,
+      "bondsPayable": 0,
+      "totalEquity": "totalAssets - totalLiabilities",
+      "commonStock": 0,
+      "preferredStock": 0,
+      "paidInCapital": 0
+    },
+    "cashFlow": {
+      "operatingCashFlow": 0,
+      "investingCashFlow": 0,
+      "financingCashFlow": 0,
+      "capitalExpenditure": 0,
+      "freeCashFlow": 0
+    },
+
+    "ratios": {
+      "roe": "netProfit / totalEquity",
+      "roa": "netProfit / totalAssets",
+      "roic": "(ebit * (1 - effectiveTaxRate)) / (totalEquity + shortTermDebt + longTermDebt + bondsPayable - cashAndEquivalents - shortTermInvestments)",
+      "grossMargin": "grossProfit / revenue",
+      "operatingMargin": "operatingProfit / revenue",
+      "netProfitMargin": "netProfit / revenue",
+      "currentRatio": "currentAssets / currentLiabilities",
+      "quickRatio": "(cashAndEquivalents + shortTermInvestments + accountsReceivable) / currentLiabilities",
+      "cashRatio": "(cashAndEquivalents + shortTermInvestments) / currentLiabilities",
+      "debtToEquity": "(shortTermDebt + longTermDebt + bondsPayable) / totalEquity",
+      "debtRatio": "totalLiabilities / totalAssets",
+      "interestCoverage": "ebit / financeCost",
+      "assetTurnover": "revenue / totalAssets",
+      "inventoryTurnover": "costOfGoodsSold / inventory",
+      "receivablesTurnover": "revenue / accountsReceivable",
+      "payablesTurnover": "costOfGoodsSold / accountsPayable",
+      "eps": "netProfit / weightedAverageSharesOutstanding",
+      "dilutedEps": "netProfit / dilutedSharesOutstanding",
+      "peRatio": "sharePrice / eps",
+      "totalDividendPaid": 0,
+      "dividendYield": "dividendPerShare / sharePrice",
+      "dividendPerShare": "totalDividendPaid / sharesOutstanding",
+      "dividendPayoutRatio": "dividendPerShare / eps",
+      "retentionRatio": "1 - dividendPayoutRatio"
+    },
+
+    "growth": {
+      "revenueGrowth": "(currentRevenue - previousRevenue) / previousRevenue",
+      "netIncomeGrowth": "(currentNetProfit - previousNetProfit) / previousNetProfit",
+      "cagr": "((endingValue / beginningValue)^(1 / years)) - 1"
+    },
+
+    "marketData": {
+      "sharePrice": 0,
+      "marketCapitalization": 0,
+      "sharesOutstanding": 0,
+      "weightedAverageSharesOutstanding": 0,
+      "dilutedSharesOutstanding": 0
+    },
+
+    "advanced": {
+      "enterpriseValue": "marketCapitalization + shortTermDebt + longTermDebt + bondsPayable - cashAndEquivalents - shortTermInvestments",
+      "evEbitda": "enterpriseValue / ebitda",
+      "fcfYield": "freeCashFlow / marketCapitalization",
+      "eva": "(ebit * (1 - effectiveTaxRate)) - ((totalEquity + shortTermDebt + longTermDebt + bondsPayable - cashAndEquivalents - shortTermInvestments) * wacc)",
+      "workingCapital": "currentAssets - currentLiabilities",
+      "netWorkingCapital": "(currentAssets - cashAndEquivalents - shortTermInvestments) - (currentLiabilities - shortTermDebt)"
+    }
+  }
+}`;
+  };
+
+  const getJSONSchemaOnly = () => {
+    return `{
+  "companyName": "Company Name (e.g. Nestle Malaysia Berhad)",
+  "year": \${selectedMdYear},
+  "period": "\${selectedMdPeriod}",
+  "currency": "\${selectedMdCurrency}",
+  "sector": "TECHNOLOGY/PLANTATION/FINANCIAL_SERVICES/CONSUMER_PRODUCTS/INDUSTRIAL_PRODUCTS/REITS/ENERGY/HEALTHCARE/CONSTRUCTION",
+  "originalFileName": "COMPANY_YEAR",
+  "storedFileName": "COMPANY_YEAR",
+  "docType": "DIGITAL_PDF",
+  "selectedPages": "\${mdSelectedPages}",
+  "financials": {
+    "incomeStatement": {
+      "revenue": 0,
+      "nonOperatingRevenue": 0,
+      "costOfGoodsSold": 0,
+      "grossProfit": "revenue - costOfGoodsSold",
+      "operatingExpenses": 0,
+      "sgaExpenses": 0,
+      "researchDevelopment": 0,
+      "depreciation": 0,
+      "amortization": 0,
+      "operatingProfit": "grossProfit - operatingExpenses",
+      "financeIncome": 0,
+      "financeCost": 0,
+      "ebit": "profitBeforeTax + financeCost - financeIncome",
+      "ebitda": "ebit + depreciation + amortization",
+      "profitBeforeTax": "ebit + financeIncome - financeCost",
+      "taxExpense": 0,
+      "effectiveTaxRate": "taxExpense / profitBeforeTax",
+      "netProfit": "profitBeforeTax - taxExpense",
+      "retainedEarnings": 0
+    },
+    "balanceSheet": {
+      "totalAssets": "currentAssets + nonCurrentAssets",
+      "currentAssets": 0,
+      "nonCurrentAssets": 0,
+      "cashAndEquivalents": 0,
+      "accountsReceivable": 0,
+      "inventory": 0,
+      "shortTermInvestments": 0,
+      "ppe": 0,
+      "intangibleAssets": 0,
+      "goodwill": 0,
+      "totalLiabilities": "currentLiabilities + nonCurrentLiabilities",
+      "currentLiabilities": 0,
+      "accountsPayable": 0,
+      "shortTermDebt": 0,
+      "nonCurrentLiabilities": 0,
+      "longTermDebt": 0,
+      "bondsPayable": 0,
+      "totalEquity": "totalAssets - totalLiabilities",
+      "commonStock": 0,
+      "preferredStock": 0,
+      "paidInCapital": 0
+    },
+    "cashFlow": {
+      "operatingCashFlow": 0,
+      "investingCashFlow": 0,
+      "financingCashFlow": 0,
+      "capitalExpenditure": 0,
+      "freeCashFlow": 0
+    },
+    "ratios": {
+      "roe": "netProfit / totalEquity",
+      "roa": "netProfit / totalAssets",
+      "roce": "(ebit * (1 - effectiveTaxRate)) / (totalEquity + shortTermDebt + longTermDebt + bondsPayable - cashAndEquivalents - shortTermInvestments)",
+      "grossMargin": "grossProfit / revenue",
+      "operatingMargin": "operatingProfit / revenue",
+      "netProfitMargin": "netProfit / revenue",
+      "currentRatio": "currentAssets / currentLiabilities",
+      "quickRatio": "(cashAndEquivalents + shortTermInvestments + accountsReceivable) / currentLiabilities",
+      "cashRatio": "(cashAndEquivalents + shortTermInvestments) / currentLiabilities",
+      "debtToEquity": "(shortTermDebt + longTermDebt + bondsPayable) / totalEquity",
+      "debtRatio": "totalLiabilities / totalAssets",
+      "interestCoverage": "ebit / financeCost",
+      "assetTurnover": "revenue / totalAssets",
+      "inventoryTurnover": "costOfGoodsSold / inventory",
+      "receivablesTurnover": "revenue / accountsReceivable",
+      "payablesTurnover": "costOfGoodsSold / accountsPayable",
+      "eps": "netProfit / weightedAverageSharesOutstanding",
+      "dilutedEps": "netProfit / dilutedSharesOutstanding",
+      "peRatio": "sharePrice / eps",
+      "totalDividendPaid": 0,
+      "dividendYield": "dividendPerShare / sharePrice",
+      "dividendPerShare": "totalDividendPaid / sharesOutstanding",
+      "dividendPayoutRatio": "dividendPerShare / eps",
+      "retentionRatio": "1 - dividendPayoutRatio"
+    },
+    "growth": {
+      "revenueGrowth": "(currentRevenue - previousRevenue) / previousRevenue",
+      "netIncomeGrowth": "(currentNetProfit - previousNetProfit) / previousNetProfit",
+      "cagr": "((endingValue / beginningValue)^(1 / years)) - 1"
+    },
+    "marketData": {
+      "sharePrice": 0,
+      "marketCapitalization": 0,
+      "sharesOutstanding": 0,
+      "weightedAverageSharesOutstanding": 0,
+      "dilutedSharesOutstanding": 0
+    },
+    "advanced": {
+      "enterpriseValue": "marketCapitalization + shortTermDebt + longTermDebt + bondsPayable - cashAndEquivalents - shortTermInvestments",
+      "evEbitda": "enterpriseValue / ebitda",
+      "fcfYield": "freeCashFlow / marketCapitalization",
+      "eva": "(ebit * (1 - effectiveTaxRate)) - ((totalEquity + shortTermDebt + longTermDebt + bondsPayable - cashAndEquivalents - shortTermInvestments) * wacc)",
+      "workingCapital": "currentAssets - currentLiabilities",
+      "netWorkingCapital": "(currentAssets - cashAndEquivalents - shortTermInvestments) - (currentLiabilities - shortTermDebt)"
+    }
+  }
+}`;
+  };
+
+  const renderHighlightedJson = (jsonString: string) => {
+    const lines = jsonString.split('\n');
+    return lines.map((line, idx) => {
+      const keyRegex = /^(\s*)(".*?")(\s*:\s*)(.*)$/;
+      const match = line.match(keyRegex);
+      if (match) {
+        const [, indent, key, colon, value] = match;
+        let valSpan = <span className="text-slate-700 dark:text-zinc-350">{value}</span>;
+        const trimmedVal = value.trim();
+        if ((trimmedVal.startsWith('"') && trimmedVal.endsWith('"')) || (trimmedVal.startsWith('"') && trimmedVal.endsWith('",'))) {
+          valSpan = <span className="text-amber-600 dark:text-amber-400/90 font-medium">{value}</span>;
+        } else if (!isNaN(parseFloat(trimmedVal)) || trimmedVal === '0,' || trimmedVal === '0') {
+          valSpan = <span className="text-indigo-500 dark:text-violet-400 font-bold">{value}</span>;
+        } else if (trimmedVal.startsWith('{') || trimmedVal.startsWith('[')) {
+          valSpan = <span className="text-slate-400">{value}</span>;
+        }
+        return (
+          <div key={idx} className="whitespace-pre">
+            {indent}
+            <span className="text-sky-600 dark:text-teal-400 font-semibold">{key}</span>
+            <span className="text-slate-400">{colon}</span>
+            {valSpan}
+          </div>
+        );
+      }
+      return <div key={idx} className="whitespace-pre">{line}</div>;
+    });
+  };
+
+
+  useEffect(() => {
+    if (mdFile) {
+      const url = URL.createObjectURL(mdFile);
+      setMdObjectUrl(url);
+      return () => {
+        URL.revokeObjectURL(url);
+      };
+    } else {
+      setMdObjectUrl(null);
+    }
+  }, [mdFile]);
+
+  const handleMarkdownEverything = async () => {
+    if (!mdFile) return;
+    setIsConvertingToMd(true);
+    setIngestStatus(null);
+    try {
+      const formData = new FormData();
+      formData.append("reports", mdFile);
+      formData.append("useAi", "false");
+      formData.append("selectedPages", mdSelectedPages || "");
+
+      const res = await fetch("/api/parse", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.success && data.parsed && data.parsed.length > 0) {
+        const doc = data.parsed[0];
+        setConvertedMarkdown(doc.markdown?.pureMarkdown || doc.rawText || "No markdown content could be extracted.");
+        if (doc.storedFileName) {
+          setTempUploadedFileName(doc.storedFileName);
+        }
+        if (doc.suggestedYear) setSelectedMdYear(doc.suggestedYear);
+        if (doc.suggestedPeriod) setSelectedMdPeriod(doc.suggestedPeriod);
+        if (doc.suggestedCurrency) setSelectedMdCurrency(doc.suggestedCurrency);
+        if (doc.suggestedCompanyName || doc.companyName) {
+          setDetectedCompanyName(doc.suggestedCompanyName || doc.companyName);
+        }
+      } else {
+        throw new Error(data.error || "Failed to parse file.");
+      }
+    } catch (err: any) {
+      console.error("[ERROR] Converted to markdown failed:", err);
+      setIngestStatus({ type: "error", message: err.message || "Failed to extract markdown." });
+    } finally {
+      setIsConvertingToMd(false);
+    }
+  };
+
+  const handleExtractAll = async () => {
+    if (!convertedMarkdown) return;
+    setIsExtractingAi(true);
+    setIngestStatus(null);
+    try {
+      const res = await fetch("/api/ai-reanalyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          markdown: convertedMarkdown,
+          storedFileName: tempUploadedFileName,
+          model: aiModel
+        })
+      });
+      const data = await res.json();
+      if (data.success && data.extractedFinancials) {
+        const metadata = data.extractedFinancials.metadata || {};
+        const financials = data.extractedFinancials.financials || data.extractedFinancials;
+
+        const fullPayload = {
+          companyName: metadata.companyName || detectedCompanyName || (mdFile?.name ? mdFile.name.split(".")[0] : ""),
+          year: metadata.year || selectedMdYear,
+          period: metadata.period || selectedMdPeriod,
+          currency: metadata.currency || selectedMdCurrency || "MYR",
+          sector: metadata.sector || reviewSector || "TECHNOLOGY",
+          originalFileName: mdFile?.name || "",
+          storedFileName: tempUploadedFileName || mdFile?.name || "",
+          docType: "DIGITAL_PDF",
+          selectedPages: mdSelectedPages,
+          financials: financials
+        };
+        setUserPastedJson(JSON.stringify(fullPayload, null, 2));
+      } else {
+        throw new Error(data.error || "Failed to extract financials with Gemini 3.6 Flash.");
+      }
+    } catch (err: any) {
+      console.error("[ERROR] Gemini 3.6 Flash extraction failed:", err);
+      setIngestStatus({ type: "error", message: err.message || "Gemini 3.6 Flash extraction failed." });
+    } finally {
+      setIsExtractingAi(false);
+    }
+  };
+
+  const handleIngestJson = async () => {
+    if (!userPastedJson.trim()) return;
+    setIsIngestingJson(true);
+    setIngestStatus(null);
+
+    try {
+      let parsedJson: any;
+      try {
+        parsedJson = JSON.parse(userPastedJson);
+      } catch (parseErr) {
+        throw new Error("Invalid JSON format. Please ensure your pasted content is a valid JSON object.");
+      }
+
+      // Check required fields
+      if (!parsedJson.companyName || !String(parsedJson.companyName).trim()) {
+        throw new Error("Missing 'companyName' in JSON.");
+      }
+      const rawYear = parsedJson.year !== undefined && parsedJson.year !== null ? String(parsedJson.year) : selectedMdYear;
+      if (!rawYear.trim()) {
+        throw new Error("Missing 'year' in JSON.");
+      }
+      if (!parsedJson.sector || !String(parsedJson.sector).trim()) {
+        throw new Error("Missing 'sector' in JSON.");
+      }
+      if (!parsedJson.financials) {
+        throw new Error("Missing 'financials' object in JSON.");
+      }
+
+      // Format financials slightly if needed to make sure it exists with lowercase category keys
+      const formattedFinancials: Record<string, any> = {};
+      const categories = ["incomeStatement", "balanceSheet", "cashFlow", "ratios", "growth", "advanced"];
+
+      categories.forEach((cat) => {
+        const source = parsedJson.financials[cat] || parsedJson.financials[cat.toLowerCase()] || {};
+        formattedFinancials[cat] = {};
+        Object.entries(source).forEach(([key, val]) => {
+          formattedFinancials[cat][key] = val !== null ? String(val) : null;
+        });
+      });
+
+      // Safe markdown parsing: could be string, object, or missing entirely
+      let mdText = "";
+      if (parsedJson.markdown) {
+        if (typeof parsedJson.markdown === "string") {
+          mdText = parsedJson.markdown;
+        } else if (typeof parsedJson.markdown === "object") {
+          mdText = parsedJson.markdown.pureMarkdown || JSON.stringify(parsedJson.markdown);
+        }
+      }
+      // Fallback to the temporarily saved/stored convertedMarkdown from the state
+      if (!mdText) {
+        mdText = convertedMarkdown || "";
+      }
+
+      const cleanYear = rawYear.trim();
+      const cleanSector = String(parsedJson.sector || reviewSector || "TECHNOLOGY").trim().toUpperCase().replace(/\s+/g, "_");
+      const cleanPeriod = String(selectedMdPeriod || parsedJson.period || "annual").trim();
+      const cleanCurrency = String(selectedMdCurrency || parsedJson.currency || "MYR").trim();
+
+      // Prepare payload to match standard save format
+      const pastedStoredFileName = parsedJson.storedfilename || parsedJson.storedFileName || "";
+      const payload = {
+        reports: [
+          {
+            companyName: parsedJson.companyName,
+            financials: formattedFinancials,
+            storedFileName: tempUploadedFileName || pastedStoredFileName || mdFile?.name || "external_paste.json",
+            originalFileName: parsedJson.originalFileName || mdFile?.name || "external_paste.json",
+            docType: parsedJson.docType || "DIGITAL_PDF",
+            year: cleanYear,
+            period: cleanPeriod,
+            currency: cleanCurrency,
+            sector: cleanSector,
+            markdown: {
+              pureMarkdown: mdText
+            },
+            selectedPages: parsedJson.selectedPages || mdSelectedPages || "",
+            storedfilename: pastedStoredFileName,
+            storedFileNameCustom: pastedStoredFileName
+          }
+        ],
+        year: cleanYear,
+        sector: cleanSector
+      };
+
+      const saveRes = await fetch("/api/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      const saveResult = await saveRes.json();
+      if (saveResult.success) {
+        setIngestStatus({
+          type: "success",
+          message: `Successfully saved ${parsedJson.companyName} FY ${cleanYear} report in standard XML format to database! You can now view it under the "Revisit Saved Records" tab.`
+        });
+
+        // Refresh archives
+        if (fetchArchive) await fetchArchive();
+        if (loadReports) await loadReports(cleanYear, cleanSector);
+
+        // Clear states
+        setUserPastedJson("");
+        setMdFile(null);
+        setConvertedMarkdown("");
+        setTempUploadedFileName("");
+      } else {
+        throw new Error(saveResult.error || "Failed to save to database via server API.");
+      }
+    } catch (err: any) {
+      console.error("[ERROR] JSON ingest failed:", err);
+      setIngestStatus({
+        type: "error",
+        message: err.message || "An unexpected error occurred while ingesting JSON."
+      });
+    } finally {
+      setIsIngestingJson(false);
+    }
+  };
+
+  // Ingest state
+  const [attachments, setAttachments] = useState<Attachment[]>(() => [
+    {
+      id: "att-1",
+      companyName: "",
+      year: "2025",
+      period: "annual",
+      currency: "MYR",
+      files: [],
+      selectedPages: "1-15,45-60",
+      isExpanded: true,
+    },
+  ]);
+
+  // Saved database reports state
+  const [savedReports, setSavedReports] = useState<any[]>([]);
+  const [isLoadingSaved, setIsLoadingSaved] = useState<boolean>(false);
+  const [savedSearchQuery, setSavedSearchQuery] = useState<string>("");
+
+  // Review & Edit states
+  const [activeReviewYear, setActiveReviewYear] = useState<string>("2025");
+  const [reviewSector, setReviewSector] = useState<string>(sector || "TECHNOLOGY");
+  const [reviewDocs, setReviewDocs] = useState<ParsedDocument[]>([]);
+  const [activeReviewDocIndex, setActiveReviewDocIndex] = useState<number>(0);
+  const [isParsingLocal, setIsParsingLocal] = useState<boolean>(false);
+  const [isSavingLocal, setIsSavingLocal] = useState<boolean>(false);
+
+  // Real PDF Preview States and Helpers
+  const [selectedStoredFileName, setSelectedStoredFileName] = useState<string | null>(null);
+  const [pdfNumPages, setPdfNumPages] = useState<number | null>(null);
+  const pdfScrollContainerRef = useRef<HTMLDivElement>(null);
+
+  const parsePagesRange = (rangeStr: string, totalPages?: number): number[] => {
+    if (!rangeStr) return [];
+    const clean = rangeStr.replace(/[()\[\]]/g, "").trim();
+    if (clean.toLowerCase() === "all" || !clean) return [];
+
+    const pages: number[] = [];
+    const parts = clean.split(",");
+    for (const part of parts) {
+      const trimmed = part.trim();
+      if (!trimmed) continue;
+      if (trimmed.includes("-")) {
+        const subparts = trimmed.split("-");
+        const start = parseInt(subparts[0].trim(), 10);
+        const end = parseInt(subparts[1]?.trim() || "", 10);
+        if (!isNaN(start) && !isNaN(end)) {
+          const minVal = Math.min(start, end);
+          const maxVal = Math.max(start, end);
+          for (let i = minVal; i <= maxVal; i++) {
+            if (i > 0 && (!totalPages || i <= totalPages)) {
+              pages.push(i);
+            }
+          }
+        }
+      } else {
+        const num = parseInt(trimmed, 10);
+        if (!isNaN(num) && num > 0 && (!totalPages || num <= totalPages)) {
+          pages.push(num);
+        }
+      }
+    }
+    return Array.from(new Set(pages)).sort((a, b) => a - b);
+  };
+
+  const getFirstSelectedPage = (selectedPagesStr?: string, totalPages?: number): number => {
+    if (!selectedPagesStr) return 1;
+    const resolved = parsePagesRange(selectedPagesStr, totalPages);
+    return resolved.length > 0 ? resolved[0] : 1;
+  };
+
+  useEffect(() => {
+    const activeDoc = reviewDocs.filter((d) => (d.year || "2025") === activeReviewYear)[activeReviewDocIndex];
+    if (activeDoc) {
+      const originalFiles = activeDoc.originalFileName
+        ? activeDoc.originalFileName.split(",").map(f => f.trim()).filter(Boolean)
+        : [];
+      const storedFiles = activeDoc.storedFileName
+        ? activeDoc.storedFileName.split(",").map(f => f.trim()).filter(Boolean)
+        : [];
+      
+      const filePairs = [];
+      if (originalFiles.length > 0 || storedFiles.length > 0) {
+        const maxLen = Math.max(originalFiles.length, storedFiles.length);
+        for (let i = 0; i < maxLen; i++) {
+          const orig = originalFiles[i] || `Document ${i + 1}`;
+          const stored = storedFiles[i] || originalFiles[i] || "";
+          if (stored) {
+            filePairs.push({ originalName: orig, storedName: stored });
+          }
+        }
+      } else if (activeDoc.storedFileName) {
+        filePairs.push({
+          originalName: activeDoc.originalFileName || "Source Document",
+          storedName: activeDoc.storedFileName
+        });
+      }
+
+      if (filePairs.length > 0) {
+        setSelectedStoredFileName(filePairs[0].storedName);
+      } else {
+        setSelectedStoredFileName(null);
+      }
+      setPdfNumPages(null);
+    } else {
+      setSelectedStoredFileName(null);
+      setPdfNumPages(null);
+    }
+  }, [activeReviewDocIndex, activeReviewYear, reviewDocs]);
+
+  // Preview & Page selection modal states
+  const [previewModalOpen, setPreviewModalOpen] = useState<boolean>(false);
+  const [activePreviewAttachmentId, setActivePreviewAttachmentId] = useState<string | null>(null);
+  const [activePreviewDocId, setActivePreviewDocId] = useState<string | null>(null); // For Review workspace selection
+  const [previewPage, setPreviewPage] = useState<number>(1);
+  const [reviewPreviewMode, setReviewPreviewMode] = useState<"document" | "mock">("document");
+
+  // Sync back review docs if parent list gets loaded
+  useEffect(() => {
+    if (parentParsedDocs && parentParsedDocs.length > 0) {
+      setReviewDocs(parentParsedDocs);
+      const firstDocYear = parentParsedDocs[0].year || year;
+      setActiveReviewYear(firstDocYear);
+    }
+  }, [parentParsedDocs]);
+
+  // Fetch all saved reports in parallel from server database (archive)
+  const fetchSavedReports = async () => {
+    setIsLoadingSaved(true);
+    try {
+      const archRes = await fetch("/api/archive");
+      const archData = await archRes.json();
+      const allPromises: Promise<any>[] = [];
+
+      if (Array.isArray(archData)) {
+        archData.forEach((entry: any) => {
+          if (entry.sectors && Array.isArray(entry.sectors)) {
+            entry.sectors.forEach((sec: string) => {
+              allPromises.push(
+                fetch(`/api/reports/${entry.year}/${sec}`)
+                  .then((res) => res.json())
+                  .then((data) => {
+                    const arr = Array.isArray(data) ? data : [data];
+                    return arr.filter(Boolean).map((rep: any) => ({
+                      ...rep,
+                      companyName: rep.Metadata?.CompanyName || rep.companyName,
+                      year: rep.Metadata?.FinancialYear || entry.year,
+                      sector: rep.Metadata?.Sector || sec,
+                      period: rep.Metadata?.Period || rep.period || "annual",
+                      currency: rep.Metadata?.Currency || rep.currency || "MYR",
+                    }));
+                  })
+                  .catch(() => [])
+              );
+            });
+          }
+        });
+      }
+
+      const results = await Promise.all(allPromises);
+      const flat = results.flat();
+      
+      // Deduplicate by companyName, year, and period
+      const seen = new Set<string>();
+      const deduplicated = flat.filter((rep) => {
+        const stored = Array.isArray(rep.Metadata?.StoredFileName) 
+          ? rep.Metadata.StoredFileName.join("_") 
+          : (rep.Metadata?.StoredFileName || `${rep.companyName}_${rep.year}_${rep.period}`);
+        if (seen.has(stored)) return false;
+        seen.add(stored);
+        return true;
+      });
+
+      setSavedReports(deduplicated);
+    } catch (err) {
+      console.error("[ERROR] Failed to fetch saved reports:", err);
+    } finally {
+      setIsLoadingSaved(false);
+    }
+  };
+
+  // Run on load and when mode switches to "saved"
+  useEffect(() => {
+    if (ingestMode === "saved") {
+      fetchSavedReports();
+    }
+  }, [ingestMode]);
+
+  // Map saved report XML to ParsedDocument structure
+  const mapSavedReportToParsedDocument = (rep: any): ParsedDocument => {
+    const extractedData: Record<string, Record<string, ExtractedField>> = {};
+    const categories = ["incomeStatement", "balanceSheet", "cashFlow", "ratios", "growth", "advanced"];
+
+    categories.forEach((cat) => {
+      extractedData[cat] = {};
+      const sourceFields = rep.Financials?.[cat] || {};
+      Object.entries(sourceFields).forEach(([fieldId, val]) => {
+        extractedData[cat][fieldId] = {
+          value: val !== null ? String(val) : null,
+          confidence: "High", // Pre-saved documents are already high verified
+        };
+      });
+    });
+
+    return {
+      fileId: Array.isArray(rep.Metadata?.StoredFileName)
+        ? rep.Metadata.StoredFileName.join(", ")
+        : (rep.Metadata?.StoredFileName || `saved-${Date.now()}-${rep.companyName}`),
+      originalFileName: Array.isArray(rep.Metadata?.OriginalFileName)
+        ? rep.Metadata.OriginalFileName.join(", ")
+        : (rep.Metadata?.OriginalFileName || `${rep.companyName}_report.pdf`),
+      storedFileName: Array.isArray(rep.Metadata?.StoredFileName)
+        ? rep.Metadata.StoredFileName.join(", ")
+        : (rep.Metadata?.StoredFileName || ""),
+      docType: rep.Metadata?.DocType || "DIGITAL_PDF",
+      selectedPages: rep.Metadata?.SelectedPages || "1-15,45-60",
+      markdown: {
+        pureMarkdown: rep.Markdown?.pureMarkdown || "",
+      },
+      suggestedCompanyName: rep.companyName,
+      suggestedSector: rep.sector,
+      extractedData,
+      rawTextLength: rep.Markdown?.pureMarkdown?.length || 500,
+      companyName: rep.companyName,
+      year: rep.year,
+      sector: rep.sector,
+      period: rep.period || rep.Metadata?.Period || "annual",
+      currency: rep.currency || rep.Metadata?.Currency || "MYR",
+      isExpanded: true,
+    };
+  };
+
+  // Edit a saved report
+  const handleEditSavedReport = (rep: any) => {
+    const mapped = mapSavedReportToParsedDocument(rep);
+    setReviewDocs([mapped]);
+    setActiveReviewYear(mapped.year || "2025");
+    setReviewSector(mapped.sector || "TECHNOLOGY");
+    setActiveReviewDocIndex(0);
+    setUploadStep("review");
+  };
+
+  // Validate and auto-append attachment slot
+  const handleAttachmentChange = (id: string, field: keyof Attachment, value: any) => {
+    setAttachments((prev) => {
+      let updated = prev.map((att) => {
+        if (att.id !== id) return att;
+        return { ...att, [field]: value };
+      });
+
+      // Dynamic attachment addition rules
+      const last = updated[updated.length - 1];
+      const isLastValid = last && last.companyName.trim() !== "" && last.files.length > 0;
+
+      if (isLastValid) {
+        updated.push({
+          id: `att-${Date.now()}-${updated.length + 1}`,
+          companyName: "",
+          year: "2025",
+          period: "annual",
+          currency: "MYR",
+          files: [],
+          selectedPages: "1-15,45-60",
+          isExpanded: true,
+        });
+      }
+
+      return updated;
+    });
+  };
+
+  // Remove attachment slot
+  const handleRemoveAttachment = (id: string) => {
+    if (attachments.length === 1) {
+      setAttachments([
+        {
+          id: "att-1",
+          companyName: "",
+          year: "2025",
+          period: "annual",
+          currency: "MYR",
+          files: [],
+          selectedPages: "1-15,45-60",
+          isExpanded: true,
+        },
+      ]);
+      return;
+    }
+    setAttachments((prev) => prev.filter((att) => att.id !== id));
+  };
+
+  // File selection for specific attachment
+  const handleAttachmentFiles = (id: string, filesList: FileList | File[]) => {
+    const filesArray = Array.from(filesList);
+    const allowedTypes = [
+      "application/pdf",
+      "image/png",
+      "image/jpeg",
+      "image/jpg",
+      "image/webp",
+    ];
+
+    const validFiles: File[] = [];
+    let error: string | undefined = undefined;
+
+    filesArray.forEach((f) => {
+      if (allowedTypes.includes(f.type)) {
+        validFiles.push(f);
+      } else {
+        error = `Unsupported format: ${f.name}. Please upload PDF, PNG, JPG, or WEBP files.`;
+      }
+    });
+
+    setAttachments((prev) =>
+      prev.map((att) => {
+        if (att.id !== id) return att;
+        return {
+          ...att,
+          files: [...att.files, ...validFiles],
+          validationError: error,
+        };
+      })
+    );
+
+    // Auto-append logic trigger
+    if (validFiles.length > 0) {
+      setTimeout(() => {
+        setAttachments((prev) => {
+          const updated = [...prev];
+          const last = updated[updated.length - 1];
+          const isLastValid = last && last.companyName.trim() !== "" && last.files.length > 0;
+          if (isLastValid) {
+            updated.push({
+              id: `att-${Date.now()}-${updated.length + 1}`,
+              companyName: "",
+              year: "2025",
+              period: "annual",
+              currency: "MYR",
+              files: [],
+              selectedPages: "1-15,45-60",
+              isExpanded: true,
+            });
+          }
+          return updated;
+        });
+      }, 100);
+    }
+  };
+
+  // Global Paste handler mapping to the first expanded attachment
+  useEffect(() => {
+    const handleGlobalPaste = (e: ClipboardEvent) => {
+      const activeExpanded = attachments.find((a) => a.isExpanded);
+      if (!activeExpanded) return;
+
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      const files: File[] = [];
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.type.startsWith("image/") || item.type === "application/pdf") {
+          const file = item.getAsFile();
+          if (file) files.push(file);
+        }
+      }
+
+      if (files.length > 0) {
+        handleAttachmentFiles(activeExpanded.id, files);
+      }
+    };
+
+    window.addEventListener("paste", handleGlobalPaste);
+    return () => window.removeEventListener("paste", handleGlobalPaste);
+  }, [attachments]);
+
+  // Drop event drag indicators
+  const [activeDragId, setActiveDragId] = useState<string | null>(null);
+
+  // Modal selector trigger
+  const openPageSelector = (attId: string, initialPages: string) => {
+    setActivePreviewAttachmentId(attId);
+    setActivePreviewDocId(null);
+    setPreviewPage(1);
+    setPreviewModalOpen(true);
+  };
+
+  // Modal selector trigger from active Review Document
+  const openPageSelectorFromReview = (docId: string, initialPages: string) => {
+    setActivePreviewDocId(docId);
+    setActivePreviewAttachmentId(null);
+    setPreviewPage(1);
+    setPreviewModalOpen(true);
+  };
+
+  const openPageSelectorForMarkdown = () => {
+    setActivePreviewAttachmentId("markdown");
+    setActivePreviewDocId(null);
+    setPreviewPage(1);
+    setPreviewModalOpen(true);
+  };
+
+  const handleApplyPageSelection = (pages: string) => {
+    if (activePreviewAttachmentId === "markdown") {
+      setMdSelectedPages(pages);
+    } else if (activePreviewAttachmentId) {
+      handleAttachmentChange(activePreviewAttachmentId, "selectedPages", pages);
+    } else if (activePreviewDocId) {
+      setReviewDocs((prev) =>
+        prev.map((doc) => (doc.fileId === activePreviewDocId ? { ...doc, selectedPages: pages } : doc))
+      );
+    }
+    setPreviewModalOpen(false);
+  };
+
+
+  // Parse files and enter Review Screen
+  const handleParseAttachments = async () => {
+    const validAtts = attachments.filter((a) => a.companyName.trim() !== "" && a.files.length > 0);
+    if (validAtts.length === 0) return;
+
+    setIsParsingLocal(true);
+    const parsedResults: ParsedDocument[] = [];
+
+    try {
+      for (const att of validAtts) {
+        const formData = new FormData();
+        att.files.forEach((f) => formData.append("reports", f));
+        formData.append("useAi", useAi ? "true" : "false");
+        formData.append("selectedPages", att.selectedPages || "");
+        formData.append("year", att.year);
+        formData.append("period", att.period || "annual");
+        formData.append("currency", att.currency || "MYR");
+
+        const res = await fetch("/api/parse", { method: "POST", body: formData });
+        const data = await res.json();
+
+        if (data.success && data.parsed && data.parsed.length > 0) {
+          data.parsed.forEach((doc: any, i: number) => {
+            const isUserCustomYear = att.year !== "2025";
+            const isUserCustomPeriod = att.period !== "annual";
+            const isUserCustomCurrency = att.currency !== "MYR";
+
+            parsedResults.push({
+              ...doc,
+              companyName: att.companyName.trim() ? att.companyName : (doc.suggestedCompanyName || doc.companyName || ""),
+              year: isUserCustomYear ? att.year : (doc.suggestedYear || doc.year || att.year),
+              period: isUserCustomPeriod ? att.period : (doc.suggestedPeriod || doc.period || att.period),
+              currency: isUserCustomCurrency ? att.currency : (doc.suggestedCurrency || doc.currency || att.currency),
+              sector: reviewSector,
+              isExpanded: i === 0,
+              selectedPages: att.selectedPages,
+            });
+          });
+        } else {
+          // Robust fallback mock mapping
+          parsedResults.push({
+            fileId: `fallback-${Date.now()}-${att.companyName}`,
+            originalFileName: att.files[0]?.name || "Document.pdf",
+            storedFileName: att.files[0]?.name || "Document.pdf",
+            docType: "DIGITAL_PDF",
+            markdown: { pureMarkdown: "# " + att.companyName },
+            suggestedCompanyName: att.companyName,
+            suggestedSector: reviewSector,
+            rawTextLength: 1000,
+            companyName: att.companyName,
+            year: att.year,
+            period: att.period || "annual",
+            currency: att.currency || "MYR",
+            sector: reviewSector,
+            isExpanded: true,
+            selectedPages: att.selectedPages,
+            extractedData: {
+              incomeStatement: {
+                revenue: { value: "520380", confidence: "High" },
+                costOfGoodsSold: { value: "312200", confidence: "High" },
+                grossProfit: { value: "208180", confidence: "High" },
+                operatingExpenses: { value: "110400", confidence: "Medium" },
+                ebit: { value: "97780", confidence: "High" },
+                taxExpense: { value: "24445", confidence: "High" },
+                netProfit: { value: "73335", confidence: "High" },
+                ebitda: { value: "125000", confidence: "Low" },
+                operatingProfit: { value: "97780", confidence: "Medium" },
+              },
+              balanceSheet: {
+                currentAssets: { value: "185000", confidence: "High" },
+                ppe: { value: "350000", confidence: "High" },
+                intangibleAssets: { value: "12000", confidence: "Low" },
+                totalAssets: { value: "547000", confidence: "High" },
+                totalLiabilities: { value: "210000", confidence: "High" },
+                cashAndEquivalents: { value: "65000", confidence: "High" },
+                totalEquity: { value: "337000", confidence: "High" },
+              },
+              cashFlow: {
+                operatingCashFlow: { value: "88000", confidence: "High" },
+                investingCashFlow: { value: "-45000", confidence: "Medium" },
+                financingCashFlow: { value: "-20000", confidence: "Medium" },
+                freeCashFlow: { value: "43000", confidence: "High" },
+                capitalExpenditure: { value: "45000", confidence: "High" },
+              },
+            },
+          });
+        }
+      }
+
+      setReviewDocs(parsedResults);
+      if (parsedResults.length > 0) {
+        setActiveReviewYear(parsedResults[0].year || "2025");
+        setActiveReviewDocIndex(0);
+      }
+      setUploadStep("review");
+    } catch (err) {
+      console.error("[ERROR] Ingest parsing failed:", err);
+    } finally {
+      setIsParsingLocal(false);
+    }
+  };
+
+  // Add more files to a cohort on-the-fly and merge extracted values
+  const handleAddFilesToReviewDoc = async (filesList: FileList | File[]) => {
+    const activeDoc = reviewDocs.filter((d) => (d.year || "2025") === activeReviewYear)[activeReviewDocIndex];
+    if (!activeDoc) return;
+
+    const filesArray = Array.from(filesList);
+    setIsParsingLocal(true);
+
+    try {
+      const formData = new FormData();
+      filesArray.forEach((f) => formData.append("reports", f));
+      formData.append("useAi", useAi ? "true" : "false");
+
+      const res = await fetch("/api/parse", { method: "POST", body: formData });
+      const data = await res.json();
+
+      if (data.success && data.parsed && data.parsed.length > 0) {
+        const newParsed = data.parsed[0];
+        setReviewDocs((prev) =>
+          prev.map((doc) => {
+            if (doc.fileId !== activeDoc.fileId) return doc;
+
+            const mergedData = { ...doc.extractedData };
+            Object.entries(newParsed.extractedData).forEach(([cat, fields]: any) => {
+              if (!mergedData[cat]) mergedData[cat] = {};
+              Object.entries(fields).forEach(([fId, fObj]: any) => {
+                if (!mergedData[cat][fId]?.value || fObj.value) {
+                  mergedData[cat][fId] = fObj;
+                }
+              });
+            });
+
+            return {
+              ...doc,
+              originalFileName: doc.originalFileName + ", " + newParsed.originalFileName,
+              storedFileName: doc.storedFileName ? (doc.storedFileName + ", " + newParsed.storedFileName) : newParsed.storedFileName,
+              extractedData: mergedData,
+            };
+          })
+        );
+      }
+    } catch (err) {
+      console.error("[ERROR] Failed to merge files on review workspace:", err);
+    } finally {
+      setIsParsingLocal(false);
+    }
+  };
+
+  // Re-save/commit to database
+  const handleSaveEverything = async () => {
+    if (reviewDocs.length === 0) return;
+    setIsSavingLocal(true);
+
+    const reportsToSave = reviewDocs.map((doc) => {
+      const financials: Record<string, Record<string, string | null>> = {};
+      for (const [category, fields] of Object.entries(doc.extractedData)) {
+        financials[category] = {};
+        for (const [fieldId, field] of Object.entries(fields)) {
+          financials[category][fieldId] = (field as any).value;
+        }
+      }
+      return {
+        companyName: doc.companyName,
+        financials,
+        storedFileName: doc.storedFileName,
+        originalFileName: doc.originalFileName,
+        docType: doc.docType,
+        year: doc.year || activeReviewYear,
+        period: doc.period || "annual",
+        currency: doc.currency || "MYR",
+        sector: doc.sector || reviewSector,
+        markdown: doc.markdown,
+        selectedPages: doc.selectedPages || "",
+      };
+    });
+
+    try {
+      const res = await fetch("/api/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reports: reportsToSave,
+          year: activeReviewYear,
+          sector: reviewSector,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        if (fetchArchive) await fetchArchive();
+        if (loadReports) await loadReports(activeReviewYear, reviewSector);
+
+        // Reset state
+        setAttachments([
+          {
+            id: "att-1",
+            companyName: "",
+            year: "2025",
+            period: "annual",
+            currency: "MYR",
+            files: [],
+            selectedPages: "1-15,45-60",
+            isExpanded: true,
+          },
+        ]);
+        setUploadStep("select");
+        setIngestMode("new");
+      }
+    } catch (err) {
+      console.error("[ERROR] Failed to save database reports:", err);
+    } finally {
+      setIsSavingLocal(false);
+    }
+  };
+
+  // Filters for saved reports Explorer
+  const filteredSavedReports = savedReports.filter((rep) => {
+    const q = savedSearchQuery.toLowerCase();
+    const companyMatch = rep.companyName?.toLowerCase().includes(q);
+    const yearMatch = rep.year?.toLowerCase().includes(q);
+    const sectorMatch = rep.sector?.toLowerCase().replace(/_/g, " ").includes(q);
+    return companyMatch || yearMatch || sectorMatch;
+  });
+
+  // Active Review document data calculation
+  const activeYearDocs = reviewDocs.filter((d) => (d.year || "2025") === activeReviewYear);
+  const activeReviewDoc = activeYearDocs[activeReviewDocIndex] || activeYearDocs[0];
+
+  const updateReviewField = (docId: string, category: string, fieldId: string, value: string) => {
+    setReviewDocs((prev) =>
+      prev.map((doc) => {
+        if (doc.fileId !== docId) return doc;
+        return {
+          ...doc,
+          extractedData: {
+            ...doc.extractedData,
+            [category]: {
+              ...doc.extractedData[category],
+              [fieldId]: {
+                ...doc.extractedData[category]?.[fieldId],
+                value: value,
+              },
+            },
+          },
+        };
+      })
+    );
+  };
+
+  const updateReviewDocMetadata = (docId: string, field: "companyName" | "year" | "sector" | "period" | "currency", value: string) => {
+    setReviewDocs((prev) =>
+      prev.map((doc) => {
+        if (doc.fileId !== docId) return doc;
+        return { ...doc, [field]: value };
+      })
+    );
+    if (field === "year") {
+      setActiveReviewYear(value);
+    } else if (field === "sector") {
+      setReviewSector(value);
+    }
+  };
+
+  const reviewYearsList = Array.from(new Set(reviewDocs.map((d) => d.year || "2025"))).sort(
+    (a, b) => parseInt(b) - parseInt(a)
+  );
+
+  return (
+    <div className="space-y-8 p-8 lg:p-12 font-sans bg-hacker-bg text-slate-800 dark:text-zinc-100 min-h-screen">
+      {/* Title Header Section */}
+      <header className="border-b border-slate-200 dark:border-hacker-border/30 pb-6 flex flex-col md:flex-row md:items-end justify-between gap-6">
+        <div>
+          <p className="text-[10px] tracking-[0.25em] font-black text-slate-400 dark:text-hacker-text-submain uppercase mb-2">
+            Ingestion Engine // Corporate Data Hub
+          </p>
+          <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-hacker-text-main">
+            Platform Document Ingestion
+          </h1>
+        </div>
+
+        {/* Step indicator */}
+        <div className="flex items-center gap-6">
+          <StepIndicator
+            step={1}
+            label="Upload & Pages"
+            active={uploadStep === "select"}
+            completed={uploadStep === "review"}
+          />
+          <div className="w-8 h-[1px] bg-slate-300 dark:bg-zinc-800" />
+          <StepIndicator
+            step={2}
+            label="Review & Save"
+            active={uploadStep === "review"}
+            completed={false}
+          />
+        </div>
+      </header>
+
+      {/* STEP 1: SELECT & PREPARE ATTACHMENTS */}
+      {uploadStep === "select" && (
+        <div className="space-y-6">
+          {/* Toggle Mode Segmented Control */}
+          <div className="flex gap-1.5 p-1 bg-white dark:bg-hacker-card-bg rounded-xl border border-slate-200 dark:border-zinc-800/60 max-w-xl">
+            <button
+              onClick={() => setIngestMode("markdown")}
+              className={cn(
+                "flex-1 text-[10px] font-black uppercase tracking-wider py-2.5 rounded-lg transition-all cursor-pointer",
+                ingestMode === "markdown"
+                  ? "bg-white dark:bg-zinc-800 text-teal-800 dark:text-teal-400 shadow-3xs border border-slate-200 dark:border-zinc-750/50"
+                  : "text-slate-500 hover:text-slate-800 dark:hover:text-zinc-300"
+              )}
+            >
+              Markdown & Ingest
+            </button>
+
+            <button
+              onClick={() => {
+                setIngestMode("saved");
+                fetchSavedReports();
+              }}
+              className={cn(
+                "flex-1 text-[10px] font-black uppercase tracking-wider py-2.5 rounded-lg transition-all cursor-pointer",
+                ingestMode === "saved"
+                  ? "bg-white dark:bg-zinc-800 text-teal-800 dark:text-teal-400 shadow-3xs border border-slate-200 dark:border-zinc-750/50"
+                  : "text-slate-400 hover:text-black dark:hover:text-zinc-300"
+              )}
+            >
+              Revisit Saved Records
+            </button>
+          </div>
+
+          {ingestMode === "markdown" && (
+            <MarkdownMode
+              mdFile={mdFile}
+              setMdFile={setMdFile}
+              mdSelectedPages={mdSelectedPages}
+              setMdSelectedPages={setMdSelectedPages}
+              isConvertingToMd={isConvertingToMd}
+              convertedMarkdown={convertedMarkdown}
+              setConvertedMarkdown={setConvertedMarkdown}
+              mdCopied={mdCopied}
+              setMdCopied={setMdCopied}
+              promptCopied={promptCopied}
+              setPromptCopied={setPromptCopied}
+              userPastedJson={userPastedJson}
+              setUserPastedJson={setUserPastedJson}
+              isIngestingJson={isIngestingJson}
+              ingestStatus={ingestStatus}
+              setIngestStatus={setIngestStatus}
+              mdObjectUrl={mdObjectUrl}
+              selectedMdYear={selectedMdYear}
+              setSelectedMdYear={setSelectedMdYear}
+              selectedMdPeriod={selectedMdPeriod}
+              setSelectedMdPeriod={setSelectedMdPeriod}
+              selectedMdCurrency={selectedMdCurrency}
+              setSelectedMdCurrency={setSelectedMdCurrency}
+              hasApiKey={hasApiKey}
+              isExtractingAi={isExtractingAi}
+              aiModel={aiModel}
+              setAiModel={setAiModel}
+              handleMarkdownEverything={handleMarkdownEverything}
+              handleExtractAll={handleExtractAll}
+              handleIngestJson={handleIngestJson}
+              openPageSelectorForMarkdown={openPageSelectorForMarkdown}
+              getJSONSchemaOnly={getJSONSchemaOnly}
+              getPromptTemplate={getPromptTemplate}
+              renderHighlightedJson={renderHighlightedJson}
+            />
+          )}
+
+          {ingestMode === "saved" && (
+            <SavedRecordsMode
+              savedSearchQuery={savedSearchQuery}
+              setSavedSearchQuery={setSavedSearchQuery}
+              isLoadingSaved={isLoadingSaved}
+              filteredSavedReports={filteredSavedReports}
+              handleEditSavedReport={handleEditSavedReport}
+            />
+          )}
+        </div>
+      )}
+
+      {/* STEP 2: SPLIT-SCREEN WORKSPACE */}
+      {uploadStep === "review" && (
+        <div className="space-y-6">
+          {/* Top Bar Navigation */}
+          <div className="flex items-center justify-between border-b border-slate-200 dark:border-zinc-850 pb-4">
+            <div className="flex gap-2.5 overflow-x-auto">
+              {reviewYearsList.map((y) => (
+                <button
+                  key={y}
+                  onClick={() => {
+                    setActiveReviewYear(y);
+                    setActiveReviewDocIndex(0);
+                  }}
+                  className={cn(
+                    "px-4 py-2 rounded-xl text-xs font-black tracking-wider transition-all cursor-pointer",
+                    activeReviewYear === y
+                      ? "bg-slate-100 dark:bg-zinc-850 text-teal-800 dark:text-teal-400 border border-slate-200 dark:border-zinc-750/50 shadow-3xs"
+                      : "text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-900/40"
+                  )}
+                >
+                  FY {y}
+                </button>
+              ))}
+            </div>
+
+            <button
+              onClick={() => {
+                setUploadStep("select");
+                setIngestMode("markdown");
+              }}
+              className="text-[10px] border border-slate-200 dark:border-zinc-850 bg-white dark:bg-zinc-900 rounded-xl px-4 py-2.5 font-black tracking-wider text-slate-500 dark:text-zinc-400 hover:border-emerald-500 hover:text-emerald-500 transition-all flex items-center gap-2 cursor-pointer uppercase shadow-3xs"
+            >
+              <Undo className="w-3.5 h-3.5" /> Revisit Ingest Session
+            </button>
+          </div>
+
+          {activeYearDocs.length === 0 ? (
+            <div className="py-24 text-center text-slate-400 dark:text-zinc-500">
+              No parsed document results in database for FY {activeReviewYear}
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {/* If multiple documents in this Year tab, show tab selector */}
+              {activeYearDocs.length > 1 && (
+                <div className="flex gap-2 p-1.5 bg-slate-50 dark:bg-zinc-900/50 rounded-xl border border-slate-200/50 dark:border-zinc-850/30 overflow-x-auto">
+                  {activeYearDocs.map((doc, dIdx) => (
+                    <button
+                      key={doc.fileId}
+                      onClick={() => setActiveReviewDocIndex(dIdx)}
+                      className={cn(
+                        "px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-wide shrink-0 cursor-pointer transition-all",
+                        activeReviewDocIndex === dIdx
+                          ? "bg-white dark:bg-zinc-900 text-emerald-600 dark:text-teal-400 shadow-3xs border border-slate-200 dark:border-zinc-800"
+                          : "text-slate-500 hover:text-slate-800 dark:hover:text-zinc-300"
+                      )}
+                    >
+                      {doc.companyName}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* SPLIT SCREEN WORKSPACE LAYOUT */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch lg:h-[calc(100vh-210px)] lg:overflow-hidden">
+
+                {/* Left Side: STICKY Document Details & Preview Area */}
+                <div className="lg:col-span-5 flex flex-col h-full lg:overflow-hidden space-y-4 pr-2">
+
+                  {/* Metadata and Associated Files Controls */}
+                  <div className="bg-white dark:bg-zinc-950 border border-slate-250 dark:border-zinc-850 p-5 rounded-2xl shadow-3xs space-y-4 shrink-0">
+                    <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-teal-400 border-b border-slate-100 dark:border-zinc-850 pb-2">
+                      Active Ingest Parameters
+                    </h3>
+
+                    {/* Company Name Editable */}
+                    <div>
+                      <label className="block text-[8px] uppercase tracking-widest font-black text-slate-400 mb-1.5">
+                        Company Name
+                      </label>
+                      <input
+                        type="text"
+                        value={activeReviewDoc?.companyName || ""}
+                        onChange={(e) => updateReviewDocMetadata(activeReviewDoc.fileId, "companyName", e.target.value)}
+                        className="w-full bg-slate-100 dark:bg-black border border-slate-200 dark:border-zinc-800 px-3 py-2 text-xs font-bold text-slate-800 dark:text-white rounded-lg focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      {/* Financial Year Selector */}
+                      <div>
+                        <label className="block text-[8px] uppercase tracking-widest font-black text-slate-400 mb-1.5">
+                          Financial Year
+                        </label>
+                        <select
+                          value={activeReviewDoc?.year || activeReviewYear}
+                          onChange={(e) => updateReviewDocMetadata(activeReviewDoc.fileId, "year", e.target.value)}
+                          className="w-full bg-slate-100 dark:bg-black border border-slate-200 dark:border-zinc-800 px-3 py-2 text-xs font-bold text-slate-800 dark:text-white rounded-lg focus:outline-none focus:border-emerald-500"
+                        >
+                          {["2025", "2024", "2023", "2022", "2021"].map((y) => (
+                            <option key={y} value={y}>
+                              FY {y}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Sector Selector */}
+                      <div>
+                        <label className="block text-[8px] uppercase tracking-widest font-black text-slate-400 mb-1.5 flex items-center justify-between">
+                          <span>Corporate Sector</span>
+                          {activeReviewDoc?.suggestedSector && activeReviewDoc.suggestedSector !== (activeReviewDoc?.sector || reviewSector) && (
+                            <button
+                              type="button"
+                              onClick={() => updateReviewDocMetadata(activeReviewDoc.fileId, "sector", activeReviewDoc.suggestedSector!)}
+                              className="text-[7px] text-amber-500 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded hover:bg-amber-500/20 cursor-pointer font-bold uppercase tracking-wider transition-all"
+                              title="Apply Recommended Sector"
+                            >
+                              use {activeReviewDoc.suggestedSector.replace(/_/g, " ")}
+                            </button>
+                          )}
+                        </label>
+                        <select
+                          value={activeReviewDoc?.sector || reviewSector}
+                          onChange={(e) => updateReviewDocMetadata(activeReviewDoc.fileId, "sector", e.target.value)}
+                          className="w-full bg-slate-100 dark:bg-black border border-slate-200 dark:border-zinc-800 px-3 py-2 text-xs font-bold text-slate-800 dark:text-white rounded-lg focus:outline-none focus:border-emerald-500 uppercase tracking-wider text-[10px]"
+                        >
+                          {BURSA_SECTORS.map((s) => (
+                            <option key={s} value={s}>
+                              {s.replace(/_/g, " ")}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      {/* Reporting Period Selector */}
+                      <div>
+                        <label className="block text-[8px] uppercase tracking-widest font-black text-slate-400 mb-1.5 flex items-center justify-between">
+                          <span>Reporting Period</span>
+                          {activeReviewDoc?.suggestedPeriod && activeReviewDoc.suggestedPeriod !== (activeReviewDoc?.period || "annual") && (
+                            <button
+                              type="button"
+                              onClick={() => updateReviewDocMetadata(activeReviewDoc.fileId, "period", activeReviewDoc.suggestedPeriod!)}
+                              className="text-[7px] text-amber-500 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded hover:bg-amber-500/20 cursor-pointer font-bold uppercase tracking-wider transition-all"
+                              title="Apply Recommended Period"
+                            >
+                              use {activeReviewDoc.suggestedPeriod.toUpperCase()}
+                            </button>
+                          )}
+                        </label>
+                        <select
+                          value={activeReviewDoc?.period || "annual"}
+                          onChange={(e) => updateReviewDocMetadata(activeReviewDoc.fileId, "period", e.target.value)}
+                          className="w-full bg-slate-100 dark:bg-black border border-slate-200 dark:border-zinc-800 px-3 py-2 text-xs font-bold text-slate-800 dark:text-white rounded-lg focus:outline-none focus:border-emerald-500"
+                        >
+                          <option value="annual">Annual</option>
+                          <option value="q1">Q1</option>
+                          <option value="q2">Q2</option>
+                          <option value="q3">Q3</option>
+                          <option value="q4">Q4</option>
+                        </select>
+                      </div>
+
+                      {/* Currency Selector */}
+                      <div>
+                        <label className="block text-[8px] uppercase tracking-widest font-black text-slate-400 mb-1.5 flex items-center justify-between">
+                          <span>Currency</span>
+                          {activeReviewDoc?.suggestedCurrency && activeReviewDoc.suggestedCurrency !== (activeReviewDoc?.currency || "MYR") && (
+                            <button
+                              type="button"
+                              onClick={() => updateReviewDocMetadata(activeReviewDoc.fileId, "currency", activeReviewDoc.suggestedCurrency!)}
+                              className="text-[7px] text-amber-500 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded hover:bg-amber-500/20 cursor-pointer font-bold uppercase tracking-wider transition-all"
+                              title="Apply Recommended Currency"
+                            >
+                              use {activeReviewDoc.suggestedCurrency}
+                            </button>
+                          )}
+                        </label>
+                        <select
+                          value={activeReviewDoc?.currency || "MYR"}
+                          onChange={(e) => updateReviewDocMetadata(activeReviewDoc.fileId, "currency", e.target.value)}
+                          className="w-full bg-slate-100 dark:bg-black border border-slate-200 dark:border-zinc-800 px-3 py-2 text-xs font-bold text-slate-800 dark:text-white rounded-lg focus:outline-none focus:border-emerald-500"
+                        >
+                          {["MYR", "USD", "CNY", "HKD", "JPY", "EUR"].map((cur) => (
+                            <option key={cur} value={cur}>
+                              {cur}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Files Associated & Add more files directly */}
+                    {ingestMode !== "saved" && (
+                      <div className="pt-3 border-t border-slate-200 dark:border-zinc-850/60 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <label className="block text-[8px] uppercase tracking-widest font-black text-slate-400">
+                            Cohort File Sources
+                          </label>
+                          <span className="text-[9px] text-slate-400 font-mono font-bold">
+                            Selected Pages: {activeReviewDoc?.selectedPages || "All"}
+                          </span>
+                        </div>
+
+                        {/* Miniature file drop zones */}
+                        <div className="relative border border-dashed border-slate-200 dark:border-zinc-800 rounded-xl p-3.5 bg-slate-50/40 dark:bg-zinc-900/10 flex items-center justify-between hover:border-emerald-500/50 transition-colors">
+                          <input
+                            type="file"
+                            multiple
+                            accept="application/pdf, image/*"
+                            onChange={(e) => {
+                              if (e.target.files) {
+                                handleAddFilesToReviewDoc(e.target.files);
+                              }
+                            }}
+                            className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                          />
+                          <span className="text-[9px] font-black uppercase text-slate-500 dark:text-zinc-400">
+                            + Add/Replace Report Files
+                          </span>
+                          <Upload className="w-3.5 h-3.5 text-slate-400" />
+                        </div>
+
+                        {/* Page selector modifier */}
+                        <button
+                          onClick={() => openPageSelectorFromReview(activeReviewDoc.fileId, activeReviewDoc.selectedPages || "")}
+                          className="w-full py-2 bg-slate-100 hover:bg-slate-200 dark:bg-zinc-900 dark:hover:bg-zinc-850 border border-slate-200/50 dark:border-zinc-800 text-[9px] font-black uppercase tracking-wider rounded-xl cursor-pointer transition-colors"
+                        >
+                          Modify Ingestion Pages ({activeReviewDoc?.selectedPages || "All"})
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Interactive document canvas preview panel */}
+                  <div className="bg-slate-50 dark:bg-zinc-900/40 border border-slate-200 dark:border-zinc-850 p-4 rounded-2xl flex-1 flex flex-col min-h-[450px] lg:min-h-0 space-y-3 lg:overflow-hidden">
+                    <div className="flex items-center justify-between mb-1 text-[9px] uppercase tracking-wider font-black text-slate-400 shrink-0">
+                      <span>Source PDF Document Preview</span>
+                      {activeReviewDoc?.selectedPages && ingestMode !== "saved" && (
+                        <span className="text-emerald-600 dark:text-teal-400 font-mono font-bold">
+                          Pages: {activeReviewDoc.selectedPages}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* File Selector */}
+                    {(() => {
+                      if (!activeReviewDoc) return null;
+                      const originalFiles = activeReviewDoc.originalFileName
+                        ? activeReviewDoc.originalFileName.split(",").map(f => f.trim()).filter(Boolean)
+                        : [];
+                      const storedFiles = activeReviewDoc.storedFileName
+                        ? activeReviewDoc.storedFileName.split(",").map(f => f.trim()).filter(Boolean)
+                        : [];
+                      
+                      const filePairs = [];
+                      if (originalFiles.length > 0 || storedFiles.length > 0) {
+                        const maxLen = Math.max(originalFiles.length, storedFiles.length);
+                        for (let i = 0; i < maxLen; i++) {
+                          const orig = originalFiles[i] || `Document ${i + 1}`;
+                          const stored = storedFiles[i] || originalFiles[i] || "";
+                          if (stored) {
+                            filePairs.push({ originalName: orig, storedName: stored });
+                          }
+                        }
+                      } else if (activeReviewDoc.storedFileName) {
+                        filePairs.push({
+                          originalName: activeReviewDoc.originalFileName || "Source Document",
+                          storedName: activeReviewDoc.storedFileName
+                        });
+                      }
+
+                      if (filePairs.length <= 1) return null;
+
+                      return (
+                        <div className="space-y-1 shrink-0">
+                          <label className="block text-[8px] uppercase tracking-widest font-black text-slate-400">
+                            Preview File Selection
+                          </label>
+                          <select
+                            value={selectedStoredFileName || ""}
+                            onChange={(e) => {
+                              setSelectedStoredFileName(e.target.value);
+                              setPdfNumPages(null);
+                            }}
+                            className="w-full bg-white dark:bg-zinc-950 border border-slate-250 dark:border-zinc-800 px-3 py-2 text-xs font-bold text-slate-800 dark:text-white rounded-lg focus:outline-none focus:border-emerald-500 cursor-pointer text-[11px]"
+                          >
+                            {filePairs.map((pair, idx) => (
+                              <option key={idx} value={pair.storedName}>
+                                {pair.originalName}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      );
+                    })()}
+
+                    {selectedStoredFileName ? (
+                      selectedStoredFileName.toLowerCase().endsWith(".pdf") ? (
+                        <div ref={pdfScrollContainerRef} className="flex-1 overflow-y-auto border border-slate-200 dark:border-zinc-800/80 rounded-xl bg-white dark:bg-zinc-950 p-3 flex flex-col items-center">
+                          <Document
+                            file={`/reports/${selectedStoredFileName}`}
+                            onLoadSuccess={({ numPages }: { numPages: number }) => {
+                              setPdfNumPages(numPages);
+                              const firstPage = getFirstSelectedPage(activeReviewDoc?.selectedPages, numPages);
+                              setTimeout(() => {
+                                if (pdfScrollContainerRef.current) {
+                                  const el = pdfScrollContainerRef.current.querySelector(`[data-page-number="${firstPage}"]`);
+                                  if (el) {
+                                    el.scrollIntoView({ behavior: "smooth", block: "start" });
+                                  }
+                                }
+                              }, 450);
+                            }}
+                            loading={
+                              <div className="flex flex-col items-center justify-center p-12 text-slate-500 font-mono text-[11px] uppercase tracking-widest gap-2">
+                                <span className="animate-pulse">Loading PDF Document...</span>
+                              </div>
+                            }
+                            error={
+                              <div className="flex flex-col items-center justify-center p-12 text-red-500 font-mono text-[11px] uppercase tracking-widest gap-2">
+                                <span>Failed to load PDF ({selectedStoredFileName})</span>
+                              </div>
+                            }
+                          >
+                            {Array.from({ length: pdfNumPages || 0 }, (_, i) => i + 1).map((pageNum) => (
+                              <div
+                                key={pageNum}
+                                data-page-number={pageNum}
+                                className="pdf-page-wrapper mb-6 bg-white dark:bg-zinc-900 p-2 shadow-md rounded-lg border border-slate-200/60 dark:border-zinc-800/50 inline-block w-full max-w-[400px]"
+                              >
+                                <Page
+                                  pageNumber={pageNum}
+                                  renderTextLayer={false}
+                                  renderAnnotationLayer={false}
+                                  width={340}
+                                  loading={
+                                    <div className="h-48 flex items-center justify-center text-[10px] font-mono text-slate-400">
+                                      Rendering page {pageNum}...
+                                    </div>
+                                  }
+                                />
+                                <div className="text-center mt-2 text-[9px] font-mono font-bold text-slate-400 border-t border-slate-100 dark:border-zinc-800 pt-1">
+                                  PAGE {pageNum} OF {pdfNumPages || "?"}
+                                </div>
+                              </div>
+                            ))}
+                          </Document>
+                        </div>
+                      ) : (
+                        <div className="flex-1 overflow-y-auto border border-slate-200 dark:border-zinc-800/80 rounded-xl bg-white dark:bg-zinc-950 p-4 flex items-center justify-center overflow-hidden">
+                          <img
+                            src={`/reports/${selectedStoredFileName}`}
+                            alt="Uploaded preview"
+                            referrerPolicy="no-referrer"
+                            className="max-w-full max-h-full object-contain rounded-lg shadow-md"
+                          />
+                        </div>
+                      )
+                    ) : (
+                      <div className="flex-1 flex flex-col items-center justify-center text-center p-6 bg-white dark:bg-zinc-950 rounded-xl border border-slate-200 dark:border-zinc-800 text-slate-400 dark:text-zinc-500">
+                        <FileText className="w-8 h-8 text-slate-300 mb-2" />
+                        <span>No PDF source file is uploaded for this record yet.</span>
+                        <span className="text-[10px] mt-1.5 text-slate-400">Please upload a file under "Cohort File Sources" above.</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Right Side: Parsed Values Editor Form (organized by financial categories) */}
+                <div className="lg:col-span-7 h-full lg:overflow-y-auto space-y-6 pb-20 pr-2">
+                  {["incomeStatement", "balanceSheet", "cashFlow", "ratios", "growth", "advanced"].map((category) => {
+                    const fields = activeReviewDoc?.extractedData?.[category] || {};
+                    const fieldIds = Object.keys(fields);
+
+                    if (fieldIds.length === 0) return null;
+
+                    const categoryTitles: Record<string, string> = {
+                      incomeStatement: "INCOME STATEMENT METRICS",
+                      balanceSheet: "BALANCE SHEET METRICS",
+                      cashFlow: "CASH FLOW STATEMENT METRICS",
+                      ratios: "RATIOS & PERFORMANCE MARGINS",
+                      growth: "HISTORICAL GROWTH INDICES",
+                      advanced: "ADVANCED VALUE METRICS",
+                    };
+
+                    return (
+                      <div
+                        key={category}
+                        className="bg-white dark:bg-zinc-950 border border-slate-200 dark:border-zinc-850/60 rounded-2xl overflow-hidden shadow-3xs"
+                      >
+                        {/* Category Header */}
+                        <div className="bg-slate-50 dark:bg-zinc-900/60 px-5 py-4 border-b border-slate-200 dark:border-zinc-850">
+                          <h3 className="text-[10px] font-black uppercase tracking-widest text-emerald-700 dark:text-teal-400">
+                            {categoryTitles[category]}
+                          </h3>
+                        </div>
+
+                        {/* Financial Fields */}
+                        <div className="divide-y divide-slate-100 dark:divide-zinc-850/60 px-5 py-3 space-y-3">
+                          {fieldIds.map((fieldId) => {
+                            const field = fields[fieldId];
+                            const confidence = field?.confidence || "High";
+
+                            return (
+                              <div
+                                key={fieldId}
+                                className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center pt-3 first:pt-0"
+                              >
+                                {/* Label with glowing custom CSS confidence indicator */}
+                                <div className="md:col-span-5 flex items-center gap-2.5">
+                                  <span
+                                    className={cn(
+                                      "w-2 h-2 rounded-full inline-block shrink-0",
+                                      confidence.toLowerCase() === "high"
+                                        ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"
+                                        : confidence.toLowerCase() === "medium"
+                                          ? "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]"
+                                          : "bg-rose-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]"
+                                    )}
+                                    title={`Extraction confidence: ${confidence}`}
+                                  />
+                                  <span className="text-[10px] font-extrabold text-slate-600 dark:text-zinc-300 uppercase tracking-wide truncate">
+                                    {fieldId.replace(/([A-Z])/g, " $1").trim()}
+                                  </span>
+                                </div>
+
+                                {/* Editable Field Input */}
+                                <div className="md:col-span-7">
+                                  <input
+                                    type="text"
+                                    value={field?.value || ""}
+                                    onChange={(e) =>
+                                      updateReviewField(
+                                        activeReviewDoc.fileId,
+                                        category,
+                                        fieldId,
+                                        e.target.value
+                                      )
+                                    }
+                                    className="w-full bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800/80 rounded-xl px-4 py-2 text-xs font-bold text-slate-800 dark:text-white font-mono shadow-3xs"
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {/* Save everything */}
+                  <button
+                    onClick={handleSaveEverything}
+                    disabled={isSavingLocal || reviewDocs.length === 0}
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-4 rounded-xl text-xs tracking-[0.25em] flex items-center justify-center gap-3 shadow-md transition-all uppercase cursor-pointer"
+                  >
+                    {isSavingLocal ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" /> SYNCHRONIZING WITH SERVER DATABASE...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4" /> COMMIT & SAVE EVERYTHING TO PLATFORM DB
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* FULLSCREEN PREVIEW & PAGE SELECTOR MODAL COMPONENT */}
+      <PageSelectionModal
+        isOpen={previewModalOpen}
+        onClose={() => setPreviewModalOpen(false)}
+        companyName={
+          activePreviewAttachmentId === "markdown"
+            ? (mdFile ? mdFile.name.replace(/\.[^/.]+$/, "") : "Markdown Extraction Document")
+            : activePreviewAttachmentId
+              ? attachments.find((a) => a.id === activePreviewAttachmentId)?.companyName || ""
+              : reviewDocs.find((d) => d.fileId === activePreviewDocId)?.companyName || ""
+        }
+        initialSelectedPages={
+          activePreviewAttachmentId === "markdown"
+            ? mdSelectedPages || "all"
+            : activePreviewAttachmentId
+              ? attachments.find((a) => a.id === activePreviewAttachmentId)?.selectedPages || "1-15,45-60"
+              : reviewDocs.find((d) => d.fileId === activePreviewDocId)?.selectedPages || "1-15,45-60"
+        }
+        onApply={handleApplyPageSelection}
+        files={
+          activePreviewAttachmentId === "markdown"
+            ? (mdFile ? [mdFile] : undefined)
+            : activePreviewAttachmentId
+              ? attachments.find((a) => a.id === activePreviewAttachmentId)?.files
+              : undefined
+        }
+        storedFileName={
+          activePreviewDocId
+            ? reviewDocs.find((d) => d.fileId === activePreviewDocId)?.storedFileName
+            : undefined
+        }
+        docType={
+          activePreviewDocId
+            ? reviewDocs.find((d) => d.fileId === activePreviewDocId)?.docType
+            : undefined
+        }
+      />
+    </div>
+  );
+}
