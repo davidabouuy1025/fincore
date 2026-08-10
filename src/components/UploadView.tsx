@@ -152,6 +152,16 @@ export function UploadView({
   const [selectedMdYear, setSelectedMdYear] = useState<string>("2025");
   const [selectedMdPeriod, setSelectedMdPeriod] = useState<string>("annual");
   const [selectedMdCurrency, setSelectedMdCurrency] = useState<string>("MYR");
+  const [hasApiKey, setHasApiKey] = useState<boolean>(false);
+  const [isExtractingAi, setIsExtractingAi] = useState<boolean>(false);
+  const [detectedCompanyName, setDetectedCompanyName] = useState<string>("");
+
+  useEffect(() => {
+    fetch("/api/ai-status")
+      .then(res => res.json())
+      .then(data => setHasApiKey(data.hasApiKey))
+      .catch(() => setHasApiKey(false));
+  }, []);
 
   const getPromptTemplate = () => {
     return `As professional auditor, convert markdown into JSON. Use the formula to calculate if any value is missing but derivable, else leave as 0. STRICTLY double check all the values ensuring that all the values are correct for the financial year.
@@ -452,6 +462,12 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
         if (doc.storedFileName) {
           setTempUploadedFileName(doc.storedFileName);
         }
+        if (doc.suggestedYear) setSelectedMdYear(doc.suggestedYear);
+        if (doc.suggestedPeriod) setSelectedMdPeriod(doc.suggestedPeriod);
+        if (doc.suggestedCurrency) setSelectedMdCurrency(doc.suggestedCurrency);
+        if (doc.suggestedCompanyName || doc.companyName) {
+          setDetectedCompanyName(doc.suggestedCompanyName || doc.companyName);
+        }
       } else {
         throw new Error(data.error || "Failed to parse file.");
       }
@@ -460,6 +476,45 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
       setIngestStatus({ type: "error", message: err.message || "Failed to extract markdown." });
     } finally {
       setIsConvertingToMd(false);
+    }
+  };
+
+  const handleExtractAll = async () => {
+    if (!convertedMarkdown) return;
+    setIsExtractingAi(true);
+    setIngestStatus(null);
+    try {
+      const res = await fetch("/api/ai-reanalyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          markdown: convertedMarkdown,
+          storedFileName: tempUploadedFileName
+        })
+      });
+      const data = await res.json();
+      if (data.success && data.extractedFinancials) {
+        const fullPayload = {
+          companyName: detectedCompanyName || (mdFile?.name ? mdFile.name.split(".")[0] : ""),
+          year: selectedMdYear,
+          period: selectedMdPeriod,
+          currency: selectedMdCurrency,
+          sector: reviewSector,
+          originalFileName: mdFile?.name || "",
+          storedFileName: tempUploadedFileName || mdFile?.name || "",
+          docType: "DIGITAL_PDF",
+          selectedPages: mdSelectedPages,
+          financials: data.extractedFinancials
+        };
+        setUserPastedJson(JSON.stringify(fullPayload, null, 2));
+      } else {
+        throw new Error(data.error || "Failed to extract financials with AI.");
+      }
+    } catch (err: any) {
+      console.error("[ERROR] AI extraction failed:", err);
+      setIngestStatus({ type: "error", message: err.message || "AI extraction failed." });
+    } finally {
+      setIsExtractingAi(false);
     }
   };
 
@@ -1305,18 +1360,6 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
           {/* Toggle Mode Segmented Control */}
           <div className="flex gap-1.5 p-1 bg-white dark:bg-hacker-card-bg rounded-xl border border-slate-200 dark:border-zinc-800/60 max-w-xl">
             <button
-              onClick={() => setIngestMode("new")}
-              className={cn(
-                "flex-1 text-[10px] font-black uppercase tracking-wider py-2.5 rounded-lg transition-all cursor-pointer",
-                ingestMode === "new"
-                  ? "bg-white dark:bg-zinc-800 text-teal-800 dark:text-teal-400 shadow-3xs border border-slate-200 dark:border-zinc-750/50"
-                  : "text-slate-500 hover:text-slate-800 dark:hover:text-zinc-300"
-              )}
-            >
-              Ingest New Reports
-            </button>
-
-            <button
               onClick={() => setIngestMode("markdown")}
               className={cn(
                 "flex-1 text-[10px] font-black uppercase tracking-wider py-2.5 rounded-lg transition-all cursor-pointer",
@@ -1343,358 +1386,6 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
               Revisit Saved Records
             </button>
           </div>
-
-          {ingestMode === "new" && (
-            <div className="space-y-6">
-              <div className="bg-emerald-500/5 dark:bg-black border border-emerald-500/10 dark:border-zinc-850 p-5 rounded-2xl text-xs space-y-2 leading-relaxed">
-                <h3 className="font-extrabold uppercase text-slate-500 dark:text-teal-400 tracking-wider flex items-center gap-1.5">
-                  <Database className="w-4 h-4 text-emerald-500" /> Attachment Pipeline
-                </h3>
-                <p className="text-slate-500 dark:text-zinc-400">
-                  Configure the Target Company and Financial Year. Attach one or multiple reports (PDF, PNG, JPG, WEBP). Select exactly which pages you want to ingest to ignore extra narrative content. Once valid data is entered, the pipeline automatically spins up a new empty slot at the bottom!
-                </p>
-              </div>
-
-              {/* Collapsible Attachments Queue */}
-              <div className="space-y-4">
-                {attachments.map((att, index) => {
-                  const fileCount = att.files.length;
-                  const hasFiles = fileCount > 0;
-
-                  return (
-                    <div
-                      key={att.id}
-                      className={cn(
-                        "border rounded-2xl overflow-hidden transition-all duration-200 shadow-3xs",
-                        att.isExpanded
-                          ? "border-emerald-600/30 bg-white dark:bg-black"
-                          : "border-slate-200 dark:border-zinc-900 bg-white dark:bg-black/10"
-                      )}
-                    >
-                      {/* Collapsible Header */}
-                      <div
-                        onClick={() =>
-                          setAttachments((prev) =>
-                            prev.map((a) => (a.id === att.id ? { ...a, isExpanded: !a.isExpanded } : a))
-                          )
-                        }
-                        className="px-5 py-4 flex items-center justify-between cursor-pointer select-none bg-white dark:bg-black/40 hover:bg-slate-50 dark:hover:bg-zinc-900/55 transition-colors"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="text-slate-400 font-mono text-[10px]">
-                            {att.isExpanded ? (
-                              <ChevronDown className="w-4 h-4 text-emerald-500" />
-                            ) : (
-                              <ChevronRight className="w-4 h-4" />
-                            )}
-                          </div>
-                          <span className="text-[9px] bg-slate-50 dark:bg-black border border-slate-250 dark:border-zinc-800 font-bold px-2 py-0.5 rounded text-slate-500 dark:text-zinc-400">
-                            SLOT #{index + 1}
-                          </span>
-                          <h3 className="text-xs font-black text-slate-800 dark:text-zinc-200 uppercase tracking-wide">
-                            {att.companyName.trim() ? att.companyName : "Unconfigured Company"}
-                            {att.companyName.trim() && ` (${att.year})`}
-                          </h3>
-                          {hasFiles && (
-                            <span className="text-[9px] bg-emerald-500/10 text-emerald-600 dark:text-teal-400 border border-emerald-500/20 px-2.5 py-0.5 rounded-lg font-bold">
-                              {fileCount} attached file{fileCount !== 1 ? "s" : ""}
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-3">
-                          {index > 0 || attachments.length > 1 ? (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleRemoveAttachment(att.id);
-                              }}
-                              className="p-1 rounded-full text-slate-450 hover:text-red-500 hover:bg-red-500/15 cursor-pointer transition-colors"
-                              title="Remove Slot"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          ) : null}
-                        </div>
-                      </div>
-
-                      {/* Expanded Content Panel */}
-                      <AnimatePresence initial={false}>
-                        {att.isExpanded && (
-                          <motion.div
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: "auto", opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            className="border-t border-slate-200 dark:border-zinc-900 p-5 space-y-4"
-                          >
-                            {/* Parameters */}
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                              <div>
-                                <label className="block text-[9px] uppercase tracking-[0.25em] text-slate-400 dark:text-zinc-500 mb-2 font-black">
-                                  Company Name <span className="text-red-500">*</span>
-                                </label>
-                                <input
-                                  type="text"
-                                  value={att.companyName}
-                                  onChange={(e) =>
-                                    handleAttachmentChange(att.id, "companyName", e.target.value)
-                                  }
-                                  placeholder="e.g. Maybank, Sunway, CIMB"
-                                  className="w-full bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-850 px-4 py-2.5 text-xs text-slate-800 dark:text-white rounded-lg focus:outline-none focus:border-emerald-500 transition-all shadow-3xs"
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-[9px] uppercase tracking-[0.25em] text-slate-400 dark:text-zinc-500 mb-2 font-black">
-                                  Financial Year <span className="text-red-500">*</span>
-                                </label>
-                                <select
-                                  value={att.year}
-                                  onChange={(e) => handleAttachmentChange(att.id, "year", e.target.value)}
-                                  className="w-full bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-850 px-4 py-2.5 text-xs text-slate-800 dark:text-white rounded-lg focus:outline-none focus:border-emerald-500 transition-all shadow-3xs cursor-pointer font-bold"
-                                >
-                                  {["2025", "2024", "2023", "2022", "2021"].map((y) => (
-                                    <option key={y} value={y}>
-                                      FY {y}
-                                    </option>
-                                  ))}
-                                </select>
-                              </div>
-                              <div>
-                                <label className="block text-[9px] uppercase tracking-[0.25em] text-slate-400 dark:text-zinc-500 mb-2 font-black">
-                                  Reporting Period <span className="text-red-500">*</span>
-                                </label>
-                                <select
-                                  value={att.period || "annual"}
-                                  onChange={(e) => handleAttachmentChange(att.id, "period", e.target.value)}
-                                  className="w-full bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-850 px-4 py-2.5 text-xs text-slate-800 dark:text-white rounded-lg focus:outline-none focus:border-emerald-500 transition-all shadow-3xs cursor-pointer font-bold"
-                                >
-                                  <option value="annual">Annual</option>
-                                  <option value="q1">Q1</option>
-                                  <option value="q2">Q2</option>
-                                  <option value="q3">Q3</option>
-                                  <option value="q4">Q4</option>
-                                </select>
-                              </div>
-                              <div>
-                                <label className="block text-[9px] uppercase tracking-[0.25em] text-slate-400 dark:text-zinc-500 mb-2 font-black">
-                                  Currency <span className="text-red-500">*</span>
-                                </label>
-                                <select
-                                  value={att.currency || "MYR"}
-                                  onChange={(e) => handleAttachmentChange(att.id, "currency", e.target.value)}
-                                  className="w-full bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-850 px-4 py-2.5 text-xs text-slate-800 dark:text-white rounded-lg focus:outline-none focus:border-emerald-500 transition-all shadow-3xs cursor-pointer font-bold"
-                                >
-                                  {["MYR", "USD", "CNY", "HKD", "JPY", "EUR"].map((cur) => (
-                                    <option key={cur} value={cur}>
-                                      {cur}
-                                    </option>
-                                  ))}
-                                </select>
-                              </div>
-                            </div>
-
-                            {/* File upload zone */}
-                            <div>
-                              <label className="block text-[9px] uppercase tracking-[0.25em] text-slate-400 dark:text-zinc-500 mb-2 font-black">
-                                File Attachments (PDF // PNG // JPG // WEBP)
-                              </label>
-                              <div
-                                onDragOver={(e) => {
-                                  e.preventDefault();
-                                  setActiveDragId(att.id);
-                                }}
-                                onDragLeave={() => setActiveDragId(null)}
-                                onDrop={(e) => {
-                                  e.preventDefault();
-                                  setActiveDragId(null);
-                                  const files = Array.from(e.dataTransfer.files);
-                                  handleAttachmentFiles(att.id, files);
-                                }}
-                                className={cn(
-                                  "relative border-2 border-dashed rounded-xl p-8 flex flex-col items-center gap-3 transition-all bg-slate-50/40 dark:bg-zinc-900/20",
-                                  activeDragId === att.id
-                                    ? "border-emerald-500 bg-emerald-500/5 shadow-[0_0_15px_rgba(16,185,129,0.15)]"
-                                    : "border-slate-200 dark:border-zinc-850 hover:border-emerald-500/55 hover:shadow-xs"
-                                )}
-                              >
-                                <input
-                                  type="file"
-                                  multiple
-                                  accept="application/pdf, image/*"
-                                  onChange={(e) => {
-                                    if (e.target.files) {
-                                      handleAttachmentFiles(att.id, e.target.files);
-                                    }
-                                  }}
-                                  className="absolute inset-0 opacity-0 cursor-pointer z-10"
-                                />
-                                <Upload
-                                  className={cn(
-                                    "w-8 h-8 transition-all",
-                                    activeDragId === att.id ? "text-emerald-500 scale-110" : "text-slate-400"
-                                  )}
-                                />
-                                <div className="text-center pointer-events-none">
-                                  <p className="text-xs font-bold text-slate-600 dark:text-zinc-400">
-                                    Drag files here or click to browse
-                                  </p>
-                                  <p className="text-[9px] text-slate-400 dark:text-zinc-500 mt-1 font-semibold tracking-widest uppercase">
-                                    ctrl+v works anywhere on screen to paste clipboard files
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Validation Error */}
-                            {att.validationError && (
-                              <div className="flex items-center gap-2 text-red-500 text-xs border border-red-500/25 bg-red-500/5 p-3.5 rounded-xl">
-                                <AlertCircle className="w-4 h-4 shrink-0" />
-                                <span className="font-bold">{att.validationError}</span>
-                              </div>
-                            )}
-
-                            {/* Attached files list */}
-                            {hasFiles && (
-                              <div className="space-y-3 pt-2">
-                                <div className="flex items-center justify-between">
-                                  <span className="text-[9px] uppercase tracking-wider font-black text-slate-400">
-                                    Documents Added ({fileCount})
-                                  </span>
-                                  <button
-                                    type="button"
-                                    onClick={() => openPageSelector(att.id, att.selectedPages)}
-                                    className="text-[10px] bg-emerald-500/10 border border-emerald-500/20 hover:border-emerald-500/50 hover:text-emerald-600 dark:hover:text-teal-400 rounded-lg px-3 py-1.5 font-black cursor-pointer transition-all flex items-center gap-1.5 uppercase tracking-wider shadow-3xs"
-                                  >
-                                    <Eye className="w-3.5 h-3.5" /> Preview & Select Pages ({att.selectedPages || "All"})
-                                  </button>
-                                </div>
-
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                  {att.files.map((file, fIdx) => (
-                                    <div
-                                      key={fIdx}
-                                      className="flex items-center justify-between bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-850 px-4 py-3 rounded-xl text-xs"
-                                    >
-                                      <div className="flex items-center gap-3 truncate">
-                                        <FileText className="w-4 h-4 text-emerald-500 shrink-0" />
-                                        <div className="truncate">
-                                          <p className="truncate font-bold text-slate-700 dark:text-zinc-200 text-[11px]">
-                                            {file.name}
-                                          </p>
-                                          <p className="text-[9px] text-slate-400 font-medium">
-                                            {(file.size / 1024).toFixed(0)} KB
-                                          </p>
-                                        </div>
-                                      </div>
-
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          setAttachments((prev) =>
-                                            prev.map((a) => {
-                                              if (a.id !== att.id) return a;
-                                              return {
-                                                ...a,
-                                                files: a.files.filter((_, idx) => idx !== fIdx),
-                                              };
-                                            })
-                                          )
-                                        }
-                                        className="p-1.5 rounded-full text-slate-400 hover:text-red-500 hover:bg-red-500/15 cursor-pointer transition-colors"
-                                      >
-                                        <X className="w-3.5 h-3.5" />
-                                      </button>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* AI Config & Ingest trigger */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
-                {/* Sector alignment */}
-                <div>
-                  <label className="block text-[9px] uppercase tracking-[0.25em] text-slate-400 dark:text-zinc-500 mb-2 font-black">
-                    Unified Extraction Sector
-                  </label>
-                  <select
-                    value={reviewSector}
-                    onChange={(e) => {
-                      setReviewSector(e.target.value);
-                      setSector(e.target.value);
-                    }}
-                    className="w-full bg-white dark:bg-black border border-slate-200 dark:border-zinc-850 px-4 py-3.5 text-xs text-slate-800 dark:text-white rounded-xl focus:outline-none focus:border-emerald-500 transition-all shadow-3xs cursor-pointer font-black uppercase tracking-wider"
-                  >
-                    {BURSA_SECTORS.map((s) => (
-                      <option key={s} value={s}>
-                        {s.replace(/_/g, " ")}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Gemini integration toggler */}
-                <div className="bg-white dark:bg-black border border-slate-200 dark:border-zinc-850 p-4 rounded-xl flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                      <Sparkles className="w-4 h-4 text-emerald-500 animate-pulse" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-black text-slate-800 dark:text-zinc-200 uppercase tracking-wide">
-                        Gemini AI Parser
-                      </p>
-                      <p className="text-[9px] text-slate-400 font-medium">
-                        Heuristic schema analyzer
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setUseAi(!useAi)}
-                    className={cn(
-                      "relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full border border-transparent transition-colors duration-200 ease-in-out focus:outline-none",
-                      useAi ? "bg-emerald-500" : "bg-slate-300 dark:bg-zinc-700"
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out",
-                        useAi ? "translate-x-5" : "translate-x-0"
-                      )}
-                    />
-                  </button>
-                </div>
-              </div>
-
-              <button
-                onClick={handleParseAttachments}
-                disabled={
-                  isParsingLocal ||
-                  attachments.filter((a) => a.companyName.trim() !== "" && a.files.length > 0).length === 0
-                }
-                className="w-full bg-slate-900 dark:bg-emerald-500 text-white dark:text-black hover:bg-black hover:shadow-lg font-black py-4 rounded-xl text-xs tracking-[0.25em] flex items-center justify-center gap-3 transition-all disabled:opacity-40 disabled:cursor-not-allowed uppercase cursor-pointer"
-              >
-                {isParsingLocal ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" /> EXECUTING BURSA EXTRACTION PIPELINE...
-                  </>
-                ) : (
-                  <>
-                    <FileSearch className="w-4 h-4" /> PARSE SELECTED PAGES & INGEST (
-                    {attachments.filter((a) => a.companyName.trim() !== "" && a.files.length > 0).length} COHORTS)
-                  </>
-                )}
-              </button>
-            </div>
-          )}
 
           {ingestMode === "markdown" && (
             <div className="space-y-6">
@@ -1737,7 +1428,7 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
                         <p className="text-xs font-bold text-slate-700 dark:text-zinc-300">
                           {mdFile ? mdFile.name : "Click or drag financial report file here"}
                         </p>
-                        <p className="text-[10px] text-slate-400">
+                        <p className="text-[10px] text-black font-medium">
                           Supports PDF, PNG, JPG, WEBP
                         </p>
                       </div>
@@ -1746,7 +1437,7 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
                     {/* Metadata Parameters row */}
                     <div className="grid grid-cols-3 gap-3">
                       <div>
-                        <label className="block text-[8px] uppercase tracking-widest font-black text-slate-400 mb-1.5">
+                        <label className="block text-[8px] uppercase tracking-widest font-black text-black mb-1.5">
                           Financial Year
                         </label>
                         <select
@@ -1763,7 +1454,7 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
                       </div>
 
                       <div>
-                        <label className="block text-[8px] uppercase tracking-widest font-black text-slate-400 mb-1.5">
+                        <label className="block text-[8px] uppercase tracking-widest font-black text-black mb-1.5">
                           Reporting Period
                         </label>
                         <select
@@ -1780,7 +1471,7 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
                       </div>
 
                       <div>
-                        <label className="block text-[8px] uppercase tracking-widest font-black text-slate-400 mb-1.5">
+                        <label className="block text-[8px] uppercase tracking-widest font-black text-black mb-1.5">
                           Currency
                         </label>
                         <select
@@ -1799,7 +1490,7 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
 
                     {/* Page Selection range input */}
                     <div>
-                      <label className="block text-[9px] uppercase tracking-[0.25em] text-slate-400 dark:text-zinc-500 mb-2 font-black">
+                      <label className="block text-[9px] uppercase tracking-[0.25em] text-black mb-2 font-black">
                         Select Page Range for Extraction
                       </label>
                       <div className="flex flex-col sm:flex-row gap-2">
@@ -1964,25 +1655,69 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
                       AI Extraction Prompt Template
                     </h3>
                   </div>
-                  <button
-                    onClick={() => {
-                      const finalPrompt = getPromptTemplate();
-                      navigator.clipboard.writeText(finalPrompt);
-                      setPromptCopied(true);
-                      setTimeout(() => setPromptCopied(false), 2000);
-                    }}
-                    className="text-[10px] font-black uppercase tracking-wider bg-white dark:bg-zinc-800 hover:bg-emerald-500/10 hover:text-emerald-500 border border-slate-200 dark:border-zinc-700 px-3 py-1.5 rounded-lg flex items-center gap-1.5 cursor-pointer transition-all"
-                  >
-                    {promptCopied ? (
-                      <>
-                        <Check className="w-3.5 h-3.5 text-emerald-500" /> Prompt Copied!
-                      </>
-                    ) : (
-                      <>
-                        <Save className="w-3.5 h-3.5" /> Copy Custom Ingest Prompt
-                      </>
-                    )}
-                  </button>
+                  {hasApiKey ? (
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => {
+                          const finalPrompt = getPromptTemplate();
+                          navigator.clipboard.writeText(finalPrompt);
+                          setPromptCopied(true);
+                          setTimeout(() => setPromptCopied(false), 2000);
+                        }}
+                        className="text-[10px] font-black uppercase tracking-wider bg-white dark:bg-zinc-800 hover:bg-emerald-500/10 hover:text-emerald-500 border border-slate-200 dark:border-zinc-700 px-3 py-1.5 rounded-lg flex items-center gap-1.5 cursor-pointer transition-all"
+                      >
+                        {promptCopied ? (
+                          <>
+                            <Check className="w-3.5 h-3.5 text-emerald-500" /> Prompt Copied!
+                          </>
+                        ) : (
+                          <>
+                            <Save className="w-3.5 h-3.5" /> Copy Custom Ingest Prompt
+                          </>
+                        )}
+                      </button>
+                      <button
+                        onClick={handleExtractAll}
+                        disabled={isExtractingAi || !convertedMarkdown}
+                        className="text-[10px] font-black uppercase tracking-wider bg-emerald-500 text-white hover:bg-emerald-600 border border-emerald-600 px-4 py-2 rounded-lg flex items-center gap-2 cursor-pointer transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isExtractingAi ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" /> Extracting with AI...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="w-3.5 h-3.5" /> Extract All
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3">
+                      <span className="text-[10px] text-red-500 dark:text-red-400 bg-red-500/10 px-2.5 py-1.5 rounded-lg font-bold border border-red-500/20">
+                        No API Key
+                      </span>
+                      <button
+                        onClick={() => {
+                          const finalPrompt = getPromptTemplate();
+                          navigator.clipboard.writeText(finalPrompt);
+                          setPromptCopied(true);
+                          setTimeout(() => setPromptCopied(false), 2000);
+                        }}
+                        className="text-[10px] font-black uppercase tracking-wider bg-white dark:bg-zinc-800 hover:bg-emerald-500/10 hover:text-emerald-500 border border-slate-200 dark:border-zinc-700 px-3 py-1.5 rounded-lg flex items-center gap-1.5 cursor-pointer transition-all"
+                      >
+                        {promptCopied ? (
+                          <>
+                            <Check className="w-3.5 h-3.5 text-emerald-500" /> Prompt Copied!
+                          </>
+                        ) : (
+                          <>
+                            <Save className="w-3.5 h-3.5" /> Copy Custom Ingest Prompt
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-4 text-xs leading-relaxed text-slate-600 dark:text-zinc-300">

@@ -46,7 +46,7 @@ export class AiService implements IAiService {
         )}`;
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -106,7 +106,7 @@ MARKDOWN:
 ${markdown.slice(0, 120000)}`;
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },

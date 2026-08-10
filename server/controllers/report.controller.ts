@@ -238,4 +238,12 @@ export class ReportController {
       return res.status(500).json({ error: err.message });
     }
   };
+
+  /**
+   * GET /api/ai-status
+   * Returns whether the Gemini API key is configured
+   */
+  getAiStatus = async (req: Request, res: Response) => {
+    return res.json({ hasApiKey: !!process.env.GEMINI_API_KEY });
+  };
 }

@@ -51,6 +51,7 @@ router.get("/reports-multi/:year/:sector", reportController.getMultiYearReports)
 router.get("/archive", reportController.getArchive);
 router.post("/ai-insights", reportController.getAiInsights);
 router.post("/ai-reanalyze", reportController.reanalyze);
+router.get("/ai-status", reportController.getAiStatus);
 
 // --- News Routes ---
 router.get("/news/state", newsController.getState);
