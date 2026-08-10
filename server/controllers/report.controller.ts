@@ -253,4 +253,22 @@ export class ReportController {
   getAiStatus = async (req: Request, res: Response) => {
     return res.json({ hasApiKey: !!process.env.GEMINI_API_KEY });
   };
+
+  /**
+   * POST /api/ai/extract
+   * Extracts financials from provided markdown text using Gemini AI
+   */
+  extractWithAi = async (req: Request, res: Response) => {
+    try {
+      const { markdown, model } = req.body;
+      if (!markdown || typeof markdown !== "string") {
+        return res.status(400).json({ error: "markdown field is required" });
+      }
+      const result = await this.aiService.extractFinancialsWithGemini(markdown, model || "gemini-2.5-flash");
+      return res.json({ success: true, ...result });
+    } catch (err: any) {
+      logger.error(`[AI EXTRACT] ${err.message}`);
+      return res.status(500).json({ error: err.message });
+    }
+  };
 }
