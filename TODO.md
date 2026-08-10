@@ -6,31 +6,31 @@
 
 ## 🔴 PHASE 0: Critical Bug Fixes (Do First — Breaks Correctness)
 
-### 0.1 — Bank ROIC / "Creating vs Destroying Value" Fix
+### 0.1 — Bank ROIC / "Creating vs Destroying Value" Fix [DONE]
 - **File:** `src/fincore_engine.ts` — `calculateCore8Metrics()`
 - **Action:** When sector = `FINANCIAL_SERVICES`, use `ROE * (1 - effectiveTaxRate)` as ROIC proxy instead of NOPAT/IC formula. Compare against a bank-specific cost of equity (~10.5%) rather than WACC 8.5%.
 - **Impact:** Fixes misclassification for PBB, CIMB, and any other bank. High-ROE banks will correctly show "Creating Value."
 
-### 0.2 — Altman Z-Score Invalid for Banks/REITs Fix
+### 0.2 — Altman Z-Score Invalid for Banks/REITs Fix [DONE]
 - **File:** `src/fincore_engine.ts` — `calculateCore8Metrics()`
 - **Action:** Add sector guard: if `FINANCIAL_SERVICES`, skip Altman Z-Score and substitute with `ROA Momentum` score (ROA / industry ROA benchmark). Add 15 neutral points to quality score. For HEALTHCARE, apply modified Altman Z' model (replaces Equity/Liabilities with Book Value of Equity/Total Liabilities).
 
-### 0.3 — Manual XML Data Fixes (Do immediately)
+### 0.3 — Manual XML Data Fixes [DONE]
 - `PUBLIC_BANK_BERHAD_2025.xml` → change `<StoredFileName>` from `.md` to `.pdf`
 - `CIMB_GROUP_HOLDINGS_BERHAD_2025.xml` → change `<Currency>MYR '000</Currency>` to `<Currency>MYR</Currency>` and add `<Period>annual</Period>`
 - `SUNWAY_HEALTHCARE_HOLDINGS_BERHAD_2026.xml` → change `<Currency>MYR '000</Currency>` to `<Currency>MYR</Currency>`
 - `PUBLIC_BANK_BERHAD_2025.xml` → add `<Period>annual</Period>`
 
-### 0.4 — TELECOMMUNICATIONS Sector Support
+### 0.4 — TELECOMMUNICATIONS Sector Support [DONE]
 - **File:** `src/constants.ts`, `src/fincore_engine.ts`
 - **Action:** Add `"TELECOMMUNICATIONS"` to `BURSA_SECTORS`. Add a telco-specific `calculateSectorMetrics` block with: EBITDA Margin (%), CapEx Intensity (CapEx/Revenue %), Net Debt/EBITDA, Subscriber ARPU proxy.
 - **Action:** Re-tag Maxis Berhad XMLs from `<Sector>TECHNOLOGY</Sector>` to `<Sector>TELECOMMUNICATIONS</Sector>`.
 
-### 0.5 — Dividend Payout Ratio Warning Badge
+### 0.5 — Dividend Payout Ratio Warning Badge [DONE]
 - **File:** `src/components/DashboardView.tsx`
 - **Action:** When rendering a financial ratio row for `dividendPayoutRatio`, if value > 1.5, render an amber `⚠️` warning badge with tooltip: "Payout ratio exceeds net profit — may include special dividends or capital returns from IPO proceeds."
 
-### 0.6 — Dashboard Quarterly Empty-State Message
+### 0.6 — Dashboard Quarterly Empty-State Message [DONE]
 - **File:** `src/components/DashboardView.tsx`
 - **Action:** When `selectedPeriod === "quarterly"` AND filtered records are empty, render an explicit empty-state card: "No quarterly reports found for this sector and year. Upload condensed interim filings (Q1–Q4) to enable this view."
 
@@ -38,7 +38,7 @@
 
 ## 🟠 PHASE 1: Core Engine & Data Improvements
 
-### 1.1 — Integrated AI Extraction via Gemini/OpenAI API Key
+### 1.1 — Integrated AI Extraction via Gemini/OpenAI API Key [DONE]
 *This is the most transformative improvement. Currently the user must manually copy a prompt, paste it into an external AI, copy the JSON, and paste it back.*
 
 **Goal:** Add an "Auto-Extract with AI" button in the Upload View that sends the converted markdown to an LLM API and automatically parses the returned JSON — no copy-paste required.
@@ -103,7 +103,7 @@ Ling: We'll pick Yahoo Finance (unofficial). This is good enough for our purpose
 
 ---
 
-### 1.4 — Arithmetic Validation on Ingest
+### 1.4 — Arithmetic Validation on Ingest [DONE]
 **Goal:** Catch AI extraction errors before they corrupt the database.
 
 **Implementation Plan:**
@@ -119,7 +119,7 @@ Ling: We'll pick Yahoo Finance (unofficial). This is good enough for our purpose
 
 ---
 
-### 1.5 — Reporting Scale Auto-Detection (Thousands vs Millions)
+### 1.5 — Reporting Scale Auto-Detection (Thousands vs Millions) [DONE]
 **Goal:** Detect from the report header whether figures are in RM thousands or RM millions and store a `unit` field.
 
 **Implementation Plan:**
@@ -191,18 +191,18 @@ Ling: We'll pick Yahoo Finance (unofficial). This is good enough for our purpose
 
 ## 🟢 PHASE 3: Performance & Architecture
 
-### 3.1 — Code Splitting & Lazy Loading
+### 3.1 — Code Splitting & Lazy Loading [DONE]
 - Implement `React.lazy()` + `Suspense` for heavy views: `UploadView`, `FinCoreView`, `NewsView`.
 - This should reduce initial bundle from 1.47MB to <400KB.
 
-### 3.2 — Delete `src/temp.tsx`
+### 3.2 — Delete `src/temp.tsx` [DONE]
 - Verify not imported. Delete.
 
-### 3.3 — Server-Side Data Caching
+### 3.3 — Server-Side Data Caching [DONE]
 - Cache parsed XML reports in memory (TTL 5 min) to avoid repeated file reads on every dashboard load.
 - Add `ETag` headers to API responses for browser-level cache.
 
-### 3.4 — Progressive Web App (PWA) Support
+### 3.4 — Progressive Web App (PWA) Support [DONE]
 - Add `manifest.json` and a service worker via `vite-plugin-pwa`.
 - Enable offline mode for browsing previously loaded reports.
 
