@@ -20,9 +20,9 @@ import {
   Edit2
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { ParsedDocument, ExtractedField, CompanyReport } from "../types";
-import { BURSA_SECTORS } from "../constants";
-import { PageSelectionModal } from "./PageSelectionModal";
+import { ParsedDocument, ExtractedField, CompanyReport } from "../../types";
+import { BURSA_SECTORS } from "../../constants";
+import { PageSelectionModal } from "../PageSelectionModal";
 import { Document, Page, pdfjs } from "react-pdf";
 import { StepIndicator } from "./StepIndicator";
 import { MarkdownMode } from "./MarkdownMode";
@@ -61,7 +61,7 @@ export function UploadView({
   const [promptCopied, setPromptCopied] = useState<boolean>(false);
   const [userPastedJson, setUserPastedJson] = useState<string>("");
   const [isIngestingJson, setIsIngestingJson] = useState<boolean>(false);
-  const [ingestStatus, setIngestStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [ingestStatus, setIngestStatus] = useState<{ type: "success" | "error" | "warning"; message: string } | null>(null);
   const [mdObjectUrl, setMdObjectUrl] = useState<string | null>(null);
   const [tempUploadedFileName, setTempUploadedFileName] = useState<string>("");
   const [selectedMdYear, setSelectedMdYear] = useState<string>("2025");
