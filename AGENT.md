@@ -61,9 +61,8 @@ src/
   constants.ts                 Sector lists, field definitions, dictionary-like constants
   types.ts                     Shared frontend types
   components/
-    UploadView.tsx             ACTIVE upload flow (2.4k lines) — imported by App.tsx
-    UploadView/                DEAD parallel refactor (index.tsx + MarkdownMode/SavedRecordsMode/
-                                StepIndicator/types/utils) — not imported by anything (see Known Issues)
+    UploadView/                ACTIVE upload flow, split into index.tsx + MarkdownMode/
+                                SavedRecordsMode/StepIndicator/types/utils — imported by App.tsx
     DashboardView.tsx          Main data table / statement view (1.6k lines)
     FinCoreView.tsx             FinCore™ scoring/analysis view (1.2k lines)
     NewsView.tsx                News tab (~900 lines)
@@ -78,31 +77,30 @@ dev-dist/                     Runtime-generated PWA dev service worker output (v
 
 ## Known issues / traps for agents
 
-1. **Two `UploadView` implementations exist.** `src/components/UploadView.tsx`
-   (flat, 2484 lines) is the one actually imported by
-   [App.tsx](src/App.tsx:11) (`import("./components/UploadView")` resolves to
-   the sibling file before the directory's `index.tsx`, per bundler
-   resolution order). The `src/components/UploadView/` directory (index.tsx +
-   MarkdownMode.tsx + SavedRecordsMode.tsx + StepIndicator.tsx + types.ts +
-   utils.ts, ~2.6k lines total) is an abandoned parallel refactor that is
-   never imported. Before editing upload-flow behavior, confirm you're in
-   `UploadView.tsx`, not the directory. Either finish migrating to the split
-   version and delete the flat file, or delete the dead directory — don't
-   edit both.
-2. **Two dictionary files exist.** `server/config/dictionary.ts` is the one
-   actually imported by `extraction.service.ts` and `ai.service.ts`.
-   `server/dictionary.ts` (root of `server/`) is unused dead code.
-3. **`dev-dist/`** is a build artifact from `vite-plugin-pwa`'s
+1. ~~Two `UploadView` implementations~~ — **resolved**: the stale flat
+   `src/components/UploadView.tsx` (frozen since 2026-08-10, superseded the
+   same day by the split refactor) was deleted. `src/components/UploadView/`
+   is now the only implementation and is what actually ships.
+2. ~~Two dictionary files~~ — **resolved**: the unused `server/dictionary.ts`
+   (frozen since 2026-06-08) was deleted. `server/config/dictionary.ts`
+   remains the one used by `extraction.service.ts` and `ai.service.ts`.
+3. **Pre-existing type error** (unrelated to the above): `report.controller.ts`
+   calls `aiService.extractFinancialsWithGemini(sourceMarkdown, model)` with 2
+   arguments in two places (`reanalyze`, `extractWithAi`) but the interface/
+   implementation only declares 1 parameter. `npx tsc --noEmit` flags both.
+   Not yet fixed — needs a decision on whether the `model` param should exist
+   on the signature or the call sites are wrong.
+4. **`dev-dist/`** is a build artifact from `vite-plugin-pwa`'s
    `devOptions.enabled: true` ([vite.config.ts:12](vite.config.ts:12)). It is
    regenerated every `npm run dev` and is not currently in `.gitignore` —
    add it rather than committing its contents.
-4. **No automated tests.** Treat any behavior change as unverified until
+5. **No automated tests.** Treat any behavior change as unverified until
    manually exercised through the UI/dev server; there is no CI safety net.
-5. **TypeScript strictness is nominal, not enforced in practice** — `strict:
+6. **TypeScript strictness is nominal, not enforced in practice** — `strict:
    true` in tsconfig but 100+ `any`/`as any`/`@ts-ignore` usages across
    `src`/`server`. Don't assume type signatures are trustworthy without
    checking the implementation.
-6. **File uploads accept any extension** (`server/routes/api.routes.ts` —
+7. **File uploads accept any extension** (`server/routes/api.routes.ts` —
    multer has no `fileFilter`), and uploaded files are later served back
    statically from `/reports/*`. Be careful about assuming only
    PDF/image content ever lands in `fincore_db/original_reports/`.

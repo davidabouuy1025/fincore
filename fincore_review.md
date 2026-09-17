@@ -20,13 +20,15 @@ banks/REITs/healthcare — shows real domain knowledge, not boilerplate CRUD.
 
 ## Code smells found
 
-- **Two live implementations of the same component.** `src/components/UploadView.tsx`
-  (2484 lines, active) and `src/components/UploadView/index.tsx` + 4 sibling
-  files (~2600 lines, dead — never imported, silently shadowed by bundler
-  file-vs-directory resolution). Whoever did this refactor never finished the
-  swap. This is ~17% of the entire `src/` line count sitting unused.
-- **Duplicate dictionary files**: `server/config/dictionary.ts` (used) vs
-  `server/dictionary.ts` (dead, 318 lines).
+- ~~Two live implementations of the same component~~ **(fixed 2026-09-18)**:
+  the stale flat `src/components/UploadView.tsx` (frozen since 2026-08-10,
+  superseded the same day by a split refactor into
+  `src/components/UploadView/`) was deleted. The split version — which
+  contains the newer AI-extract wiring and reportingUnit UI that had been
+  silently dead — is now what actually ships, confirmed via `vite build`.
+- ~~Duplicate dictionary files~~ **(fixed 2026-09-18)**: the unused
+  `server/dictionary.ts` (frozen since 2026-06-08, 318 lines) was deleted.
+  `server/config/dictionary.ts` remains the active one.
 - **God components**: `UploadView.tsx` 2484 lines, `DashboardView.tsx` 1625,
   `NewsView.tsx` 888, `FinCoreView.tsx` 1185, `PageSelectionModal.tsx` 694 —
   all doing far more than one component should; little decomposition, heavy
