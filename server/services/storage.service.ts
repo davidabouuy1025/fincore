@@ -4,11 +4,14 @@ import { XMLBuilder, XMLParser } from "fast-xml-parser";
 import { IStorageService } from "../controllers/report.controller";
 import { toTitleCase, normalizePeriod } from "../utils";
 
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
 export class StorageService implements IStorageService {
   private dbRoot: string;
   private storageRoot: string;
   private builder: XMLBuilder;
   private parser: XMLParser;
+  private cache = new Map<string, { data: any; expiry: number }>();
 
   constructor() {
     this.dbRoot = process.env.FINCORE_DB_PATH || "./fincore_db";
@@ -142,6 +145,7 @@ export class StorageService implements IStorageService {
             const clean = str.replace(/[^A-Z]/g, "").slice(0, 3);
             return clean || "MYR";
           })(currency),
+          ReportingUnit: report.reportingUnit || null,
           DocType: docType,
           ProcessedAt: new Date().toISOString(),
           SelectedPages: selectedPages || "",
@@ -198,10 +202,93 @@ export class StorageService implements IStorageService {
       }
     }
 
+    const validationWarnings = this.validateFinancials(financials);
+    if (validationWarnings.length > 0) {
+      console.warn(`[VALIDATION] ${companyName} has ${validationWarnings.length} warning(s):`, validationWarnings);
+    }
+    // Invalidate cache entries for this year/sector so next read fetches fresh data
+    for (const key of this.cache.keys()) {
+      if (key.includes(`:${reportYear}:${reportSector}`)) {
+        this.cache.delete(key);
+      }
+    }
+
     fs.writeFileSync(destinationPath, this.builder.build(reportData));
     console.log(`[SAVED] Structured XML updated for entity: ${companyName} -> ${reportSector}/${reportYear} as ${fileName}`);
 
-    return { companyName, fileName, sector: reportSector, year: reportYear };
+    return { companyName, fileName, sector: reportSector, year: reportYear, validationWarnings };
+  }
+
+  /**
+   * Validates financial arithmetic consistency before persisting to XML.
+   * Returns a list of human-readable warning strings (non-blocking).
+   */
+  private validateFinancials(financials: any): string[] {
+    const warnings: string[] = [];
+    const n = (v: any): number => {
+      if (v === null || v === undefined || v === "") return 0;
+      const num = parseFloat(String(v).replace(/,/g, ""));
+      return isNaN(num) ? 0 : num;
+    };
+
+    const inc = financials?.incomeStatement || {};
+    const bal = financials?.balanceSheet || {};
+
+    const revenue = n(inc.revenue);
+    const cogs = n(inc.costOfGoodsSold);
+    const grossProfit = n(inc.grossProfit);
+    const netProfit = n(inc.netProfit);
+    const profitBeforeTax = n(inc.profitBeforeTax);
+    const taxExpense = n(inc.taxExpense);
+    const ebit = n(inc.ebit);
+    const ebitda = n(inc.ebitda);
+    const depreciation = n(inc.depreciation);
+    const amortization = n(inc.amortization);
+    const totalAssets = n(bal.totalAssets);
+    const totalLiabilities = n(bal.totalLiabilities);
+    const totalEquity = n(bal.totalEquity);
+
+    const tol = (a: number, b: number, pct = 0.05): boolean => {
+      if (a === 0 && b === 0) return true;
+      const base = Math.max(Math.abs(a), Math.abs(b));
+      return base === 0 ? true : Math.abs(a - b) / base <= pct;
+    };
+
+    // Gross Profit = Revenue - COGS
+    if (revenue > 0 && cogs > 0 && grossProfit > 0) {
+      if (!tol(grossProfit, revenue - cogs)) {
+        warnings.push(`Gross Profit mismatch: ${grossProfit.toLocaleString()} ≠ Revenue(${revenue.toLocaleString()}) - COGS(${cogs.toLocaleString()}) = ${(revenue - cogs).toLocaleString()}`);
+      }
+    }
+
+    // Net Profit ≈ Profit Before Tax - Tax Expense
+    if (profitBeforeTax > 0 && taxExpense > 0 && netProfit > 0) {
+      if (!tol(netProfit, profitBeforeTax - taxExpense)) {
+        warnings.push(`Net Profit mismatch: ${netProfit.toLocaleString()} ≠ PBT(${profitBeforeTax.toLocaleString()}) - Tax(${taxExpense.toLocaleString()}) = ${(profitBeforeTax - taxExpense).toLocaleString()}`);
+      }
+    }
+
+    // Balance Sheet Identity: Total Assets ≈ Total Liabilities + Total Equity
+    if (totalAssets > 0 && totalLiabilities > 0 && totalEquity > 0) {
+      if (!tol(totalAssets, totalLiabilities + totalEquity, 0.02)) {
+        warnings.push(`Balance sheet imbalance: Assets(${totalAssets.toLocaleString()}) ≠ Liabilities(${totalLiabilities.toLocaleString()}) + Equity(${totalEquity.toLocaleString()}) = ${(totalLiabilities + totalEquity).toLocaleString()}`);
+      }
+    }
+
+    // EBITDA ≥ EBIT (D&A is always ≥ 0)
+    if (ebitda > 0 && ebit > 0 && ebitda < ebit - 1) {
+      warnings.push(`EBITDA(${ebitda.toLocaleString()}) < EBIT(${ebit.toLocaleString()}) — D&A should be non-negative`);
+    }
+
+    // EBITDA ≈ EBIT + Depreciation + Amortization
+    if (ebit > 0 && (depreciation > 0 || amortization > 0) && ebitda > 0) {
+      const expected = ebit + depreciation + amortization;
+      if (!tol(ebitda, expected)) {
+        warnings.push(`EBITDA mismatch: ${ebitda.toLocaleString()} ≠ EBIT + D&A = ${expected.toLocaleString()}`);
+      }
+    }
+
+    return warnings;
   }
 
   /**
@@ -234,12 +321,16 @@ export class StorageService implements IStorageService {
    * Reconstructs an array of structured reports matching criteria
    */
   public getReportsByYearAndSector(year: string, sector: string): any[] {
+    const cacheKey = `single:${year}:${sector}`;
+    const cached = this.cache.get(cacheKey);
+    if (cached && cached.expiry > Date.now()) return cached.data;
+
     const sectorPath = this.findSectorDir(year, sector);
     if (!sectorPath) return [];
 
     const files = fs.readdirSync(sectorPath).filter((f) => f.endsWith(".xml"));
 
-    return files
+    const result = files
       .map((file) => {
         try {
           const content = fs.readFileSync(path.join(sectorPath, file), "utf-8");
@@ -249,12 +340,19 @@ export class StorageService implements IStorageService {
         }
       })
       .filter(Boolean);
+
+    this.cache.set(cacheKey, { data: result, expiry: Date.now() + CACHE_TTL_MS });
+    return result;
   }
 
   /**
    * Retrieves reports for up to 5 consecutive years starting from year
    */
   public getMultiYearReports(year: string, sector: string): any[] {
+    const cacheKey = `multi:${year}:${sector}`;
+    const cached = this.cache.get(cacheKey);
+    if (cached && cached.expiry > Date.now()) return cached.data;
+
     const startYear = parseInt(year, 10);
     if (isNaN(startYear)) return [];
 
@@ -285,6 +383,7 @@ export class StorageService implements IStorageService {
       }
     }
 
+    this.cache.set(cacheKey, { data: reports, expiry: Date.now() + CACHE_TTL_MS });
     return reports;
   }
 
