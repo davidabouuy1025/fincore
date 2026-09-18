@@ -92,6 +92,7 @@ Return only valid JSON in this exact shape, populating the categories with the e
   "companyName": "extracted company name",
   "year": "extracted year",
   "period": "extracted period",
+  "reportingUnit": "thousands|millions|units (the scale in which all financial figures are reported)",
   "financials": {
     "incomeStatement": {
       "revenue": 0,

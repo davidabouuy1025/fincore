@@ -52,6 +52,7 @@ router.get("/archive", reportController.getArchive);
 router.post("/ai-insights", reportController.getAiInsights);
 router.post("/ai-reanalyze", reportController.reanalyze);
 router.get("/ai-status", reportController.getAiStatus);
+router.post("/ai/extract", reportController.extractWithAi);
 
 // --- News Routes ---
 router.get("/news/state", newsController.getState);
