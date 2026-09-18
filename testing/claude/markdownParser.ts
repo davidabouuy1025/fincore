@@ -487,6 +487,15 @@ function resolveByPrecedence<T>(
 }
 
 /**
+ * A sub-schedule that happens to be titled like one of the primary statements
+ * but is not one - e.g. Bursa banks disclose a full "Statements of Financial
+ * Position" for their insurance/takaful subsidiary inside the notes. Left
+ * unguarded, its repeated "TOTAL ASSETS" row collides with the real
+ * consolidated balance sheet under the same series key.
+ */
+const NOTE_SUB_SCHEDULE_RE = /insurance\s*\/?\s*takaful business|\btakaful\b.{0,20}\bbusiness\b|^\s*[A-Z]\d{1,3}\s*\./m;
+
+/**
  * Reads a statement title out of a chunk of context. Returns null rather than
  * "any" so the caller can fall through to a lower-precedence chunk.
  *
@@ -494,6 +503,7 @@ function resolveByPrecedence<T>(
  * so the most specific titles are tested first.
  */
 function probeStatement(context: string): StatementKind | null {
+  if (NOTE_SUB_SCHEDULE_RE.test(context)) return null;
   const t = context.toLowerCase();
   if (/statements? of cash flows?|cash flows? statements?/.test(t)) return "cashflow";
   if (/statements? of changes in equity/.test(t)) return "equity";
@@ -527,9 +537,14 @@ function probeScope(context: string): { group: boolean; company: boolean } | nul
       .trim()
       .toLowerCase();
 
+    const compact = stripped.replace(/\s+/g, "");
+
     if (stripped === "group") group = true;
     else if (stripped === "company" || stripped === "bank") company = true;
-    else if (stripped === "group company" || stripped === "group bank" || stripped === "groupbank" || stripped === "groupcompany") {
+    // The extractor fuses adjacent column headings with no separator, and in
+    // either order ("GroupBank" and "BankGroup" both occur), so this must
+    // check composition rather than enumerate every concatenation.
+    else if (/^(group|company|bank)+$/.test(compact) && /group/.test(compact) && /company|bank/.test(compact)) {
       group = true;
       company = true;
     }
