@@ -135,7 +135,7 @@ export function UploadView({
   fetchArchive,
 }: UploadViewProps) {
   // Mode selector: "new" (Ingest Pipeline), "markdown" (Markdown & Ingest), or "saved" (Edit Saved Records)
-  const [ingestMode, setIngestMode] = useState<"new" | "markdown" | "saved">("markdown");
+  const [ingestMode, setIngestMode] = useState<"parsing" | "new" | "markdown" | "saved">("markdown");
 
   // Markdown & Ingest states
   const [mdFile, setMdFile] = useState<File | null>(null);
@@ -724,7 +724,7 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
       const storedFiles = activeDoc.storedFileName
         ? activeDoc.storedFileName.split(",").map(f => f.trim()).filter(Boolean)
         : [];
-      
+
       const filePairs = [];
       if (originalFiles.length > 0 || storedFiles.length > 0) {
         const maxLen = Math.max(originalFiles.length, storedFiles.length);
@@ -805,12 +805,12 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
 
       const results = await Promise.all(allPromises);
       const flat = results.flat();
-      
+
       // Deduplicate by companyName, year, and period
       const seen = new Set<string>();
       const deduplicated = flat.filter((rep) => {
-        const stored = Array.isArray(rep.Metadata?.StoredFileName) 
-          ? rep.Metadata.StoredFileName.join("_") 
+        const stored = Array.isArray(rep.Metadata?.StoredFileName)
+          ? rep.Metadata.StoredFileName.join("_")
           : (rep.Metadata?.StoredFileName || `${rep.companyName}_${rep.year}_${rep.period}`);
         if (seen.has(stored)) return false;
         seen.add(stored);
@@ -1364,6 +1364,18 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
         <div className="space-y-6">
           {/* Toggle Mode Segmented Control */}
           <div className="flex gap-1.5 p-1 bg-white dark:bg-hacker-card-bg rounded-xl border border-slate-200 dark:border-zinc-800/60 max-w-xl">
+            <button
+              onClick={() => setIngestMode("parsing")}
+              className={cn(
+                "flex-1 text-[10px] font-black uppercase tracking-wider py-2.5 rounded-lg transition-all cursor-pointer",
+                ingestMode === "markdown"
+                  ? "bg-white dark:bg-zinc-800 text-teal-800 dark:text-teal-400 shadow-3xs border border-slate-200 dark:border-zinc-750/50"
+                  : "text-slate-500 hover:text-slate-800 dark:hover:text-zinc-300"
+              )}
+            >
+              Built-In Parsing
+            </button>
+
             <button
               onClick={() => setIngestMode("markdown")}
               className={cn(
@@ -2222,7 +2234,7 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
                       const storedFiles = activeReviewDoc.storedFileName
                         ? activeReviewDoc.storedFileName.split(",").map(f => f.trim()).filter(Boolean)
                         : [];
-                      
+
                       const filePairs = [];
                       if (originalFiles.length > 0 || storedFiles.length > 0) {
                         const maxLen = Math.max(originalFiles.length, storedFiles.length);
