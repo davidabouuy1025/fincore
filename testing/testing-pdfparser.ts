@@ -6,8 +6,7 @@
 import fs from "fs";    // FS - file system
 import pdfParse from "pdf-parse";
 
-const dataBuffer = fs.readFileSync("./testing/finstat.pdf");
-const filePath = 'testing/output/sample1.txt';
+const dataBuffer = fs.readFileSync("./testing/pbb.pdf");
 
 try {
     //Testing line
@@ -19,7 +18,7 @@ try {
     // console.log(result.text);
 
     // Save to text file
-    const filePath = "testing/output/sample2.txt";
+    const filePath = "testing/output/pbb.txt";
     fs.writeFileSync(filePath, result.text, "utf-8");
 
 } catch (error) {
