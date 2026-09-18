@@ -34,7 +34,7 @@ import {
   KEYWORD_INDEX,
   StatementKind,
   ValueKind,
-} from "./dictionary";
+} from "./dictionary.js";
 
 /* ========================================================================== */
 /*  Types                                                                      */

@@ -1,4 +1,4 @@
-import { Category, FINANCIAL_DICTIONARY } from "./dictionary";
+import { Category, FINANCIAL_DICTIONARY } from "./dictionary.js";
 
 export { FINANCIAL_DICTIONARY };
 export type { Category };

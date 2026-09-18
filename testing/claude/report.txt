@@ -1,0 +1,171 @@
+currency: MYR | printed unit: RM'000 | values scaled to: millions
+
+Series found (12):
+  company|balance|current    6 fields
+  company|balance|prior      6 fields
+  company|quarter|current    12 fields
+  company|quarter|prior      12 fields
+  company|ytd|current        12 fields
+  company|ytd|prior          12 fields
+  group|balance|current      14 fields
+  group|balance|prior        14 fields
+  group|quarter|current      13 fields
+  group|quarter|prior        13 fields
+  group|ytd|current          16 fields
+  group|ytd|prior            16 fields
+
+Biggest current-period series: group|ytd|current
+  Finance Income                 RM 4.67b         high
+  Finance Cost                   RM 2.63b         high
+  Other Operating Income         RM 955.1m        high
+  Operating Expenses (OPEX)      RM 2.04b         high
+  Operating Profit               RM 2.32b         high
+  Impairment Losses              RM 170.4m        medium
+  Share of Associates / JVs      RM -23.9m        high
+  Profit Before Tax              RM 2.12b         high
+  Tax Expense                    RM 459.9m        high
+  Net Profit / PAT               RM 1.67b         high
+  Total Comprehensive Income     RM 1.43b         medium
+  Depreciation                   RM 74.2m         medium
+
+YoY (group, YTD, if present):
+  netProfit            7.0%
+  profitBeforeTax      6.0%
+  totalAssets          n/a
+
+Consistency checks: 10/10 passed
+
+For ParsedDocument.extractedData.incomeStatement:
+{
+  "incomeStatement": {
+    "financeIncome": {
+      "value": "4674.57",
+      "confidence": "high"
+    },
+    "financeCost": {
+      "value": "2628.73",
+      "confidence": "high"
+    },
+    "otherOperatingIncome": {
+      "value": "955.1",
+      "confidence": "high"
+    },
+    "operatingExpenses": {
+      "value": "2037.49",
+      "confidence": "high"
+    },
+    "operatingProfit": {
+      "value": "2319.3",
+      "confidence": "high"
+    },
+    "impairmentLosses": {
+      "value": "170.42",
+      "confidence": "medium"
+    },
+    "shareOfAssociates": {
+      "value": "-23.896",
+      "confidence": "high"
+    },
+    "profitBeforeTax": {
+      "value": "2124.98",
+      "confidence": "high"
+    },
+    "taxExpense": {
+      "value": "459.91",
+      "confidence": "high"
+    },
+    "netProfit": {
+      "value": "1665.07",
+      "confidence": "high"
+    },
+    "comprehensiveIncome": {
+      "value": "1428.66",
+      "confidence": "medium"
+    },
+    "depreciation": {
+      "value": "74.236",
+      "confidence": "medium"
+    },
+    "amortization": {
+      "value": "102.29",
+      "confidence": "medium"
+    },
+    "ebit": {
+      "value": "4753.71",
+      "confidence": "low"
+    },
+    "effectiveTaxRate": {
+      "value": "0.2164",
+      "confidence": "low"
+    },
+    "ebitda": {
+      "value": "4930.24",
+      "confidence": "low"
+    }
+  },
+  "balanceSheet": {
+    "cashAndEquivalents": {
+      "value": "11215.14",
+      "confidence": "high"
+    },
+    "rightOfUseAssets": {
+      "value": "113.56",
+      "confidence": "high"
+    },
+    "ppe": {
+      "value": "930.07",
+      "confidence": "high"
+    },
+    "goodwill": {
+      "value": "2649.31",
+      "confidence": "high"
+    },
+    "intangibleAssets": {
+      "value": "845.61",
+      "confidence": "high"
+    },
+    "totalAssets": {
+      "value": "379230.87",
+      "confidence": "high"
+    },
+    "leaseLiabilities": {
+      "value": "124.17",
+      "confidence": "high"
+    },
+    "totalBorrowings": {
+      "value": "7318.84",
+      "confidence": "high"
+    },
+    "totalLiabilities": {
+      "value": "345142.81",
+      "confidence": "high"
+    },
+    "commonStock": {
+      "value": "8701.1",
+      "confidence": "high"
+    },
+    "minorityInterest": {
+      "value": "42.384",
+      "confidence": "high"
+    },
+    "totalEquity": {
+      "value": "34088.06",
+      "confidence": "high"
+    }
+  },
+  "cashFlow": {},
+  "ratios": {
+    "debtToEquity": {
+      "value": "0.2147",
+      "confidence": "low"
+    }
+  },
+  "growth": {},
+  "marketData": {},
+  "advanced": {
+    "netDebt": {
+      "value": "-3896.3",
+      "confidence": "low"
+    }
+  }
+}
