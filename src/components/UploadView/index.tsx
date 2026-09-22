@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Upload,
   FileText,
@@ -20,9 +20,9 @@ import {
   Edit2
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { ParsedDocument, ExtractedField, CompanyReport } from "../types";
-import { BURSA_SECTORS } from "../constants";
-import { PageSelectionModal } from "./PageSelectionModal";
+import { ParsedDocument, ExtractedField, CompanyReport } from "../../types";
+import { BURSA_SECTORS } from "../../constants";
+import { PageSelectionModal } from "../PageSelectionModal";
 import { Document, Page, pdfjs } from "react-pdf";
 import { StepIndicator } from "./StepIndicator";
 import { MarkdownMode } from "./MarkdownMode";
@@ -61,7 +61,7 @@ export function UploadView({
   const [promptCopied, setPromptCopied] = useState<boolean>(false);
   const [userPastedJson, setUserPastedJson] = useState<string>("");
   const [isIngestingJson, setIsIngestingJson] = useState<boolean>(false);
-  const [ingestStatus, setIngestStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [ingestStatus, setIngestStatus] = useState<{ type: "success" | "error" | "warning"; message: string } | null>(null);
   const [mdObjectUrl, setMdObjectUrl] = useState<string | null>(null);
   const [tempUploadedFileName, setTempUploadedFileName] = useState<string>("");
   const [selectedMdYear, setSelectedMdYear] = useState<string>("2025");
@@ -400,19 +400,18 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
     setIsExtractingAi(true);
     setIngestStatus(null);
     try {
-      const res = await fetch("/api/ai-reanalyze", {
+      const res = await fetch("/api/ai/extract", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           markdown: convertedMarkdown,
-          storedFileName: tempUploadedFileName,
           model: aiModel
         })
       });
       const data = await res.json();
-      if (data.success && data.extractedFinancials) {
-        const metadata = data.extractedFinancials.metadata || {};
-        const financials = data.extractedFinancials.financials || data.extractedFinancials;
+      if (data.success) {
+        const metadata = data.metadata || {};
+        const financials = data.financials || {};
 
         const fullPayload = {
           companyName: metadata.companyName || detectedCompanyName || (mdFile?.name ? mdFile.name.split(".")[0] : ""),
@@ -427,12 +426,13 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
           financials: financials
         };
         setUserPastedJson(JSON.stringify(fullPayload, null, 2));
+        setIngestStatus({ type: "success", message: "✅ AI extraction complete — review the JSON below then click Commit & Save." });
       } else {
-        throw new Error(data.error || "Failed to extract financials with Gemini 3.6 Flash.");
+        throw new Error(data.error || "Failed to extract financials with AI.");
       }
     } catch (err: any) {
-      console.error("[ERROR] Gemini 3.6 Flash extraction failed:", err);
-      setIngestStatus({ type: "error", message: err.message || "Gemini 3.6 Flash extraction failed." });
+      console.error("[ERROR] AI extraction failed:", err);
+      setIngestStatus({ type: "error", message: err.message || "AI extraction failed." });
     } finally {
       setIsExtractingAi(false);
     }
@@ -531,9 +531,17 @@ ${JSON.stringify(convertedMarkdown || "Skip, return nothing")}
 
       const saveResult = await saveRes.json();
       if (saveResult.success) {
+        const validationWarnings: string[] = (saveResult.saved || [])
+          .flatMap((s: any) => s.validationWarnings || []);
+
+        const successMsg = `Successfully saved ${parsedJson.companyName} FY ${cleanYear} report in standard XML format to database! You can now view it under the "Revisit Saved Records" tab.`;
+        const warningMsg = validationWarnings.length > 0
+          ? `\n\n⚠️ ${validationWarnings.length} data warning(s) detected:\n${validationWarnings.map((w, i) => `${i + 1}. ${w}`).join("\n")}`
+          : "";
+
         setIngestStatus({
-          type: "success",
-          message: `Successfully saved ${parsedJson.companyName} FY ${cleanYear} report in standard XML format to database! You can now view it under the "Revisit Saved Records" tab.`
+          type: validationWarnings.length > 0 ? "warning" : "success",
+          message: successMsg + warningMsg
         });
 
         // Refresh archives

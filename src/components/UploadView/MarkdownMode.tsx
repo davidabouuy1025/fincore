@@ -30,8 +30,8 @@ interface MarkdownModeProps {
   userPastedJson: string;
   setUserPastedJson: (json: string) => void;
   isIngestingJson: boolean;
-  ingestStatus: { type: "success" | "error"; message: string } | null;
-  setIngestStatus: (status: { type: "success" | "error"; message: string } | null) => void;
+  ingestStatus: { type: "success" | "error" | "warning"; message: string } | null;
+  setIngestStatus: (status: { type: "success" | "error" | "warning"; message: string } | null) => void;
   mdObjectUrl: string | null;
   selectedMdYear: string;
   setSelectedMdYear: (year: string) => void;
@@ -502,10 +502,12 @@ export function MarkdownMode(props: MarkdownModeProps) {
             initial={{ opacity: 0, y: 5 }}
             animate={{ opacity: 1, y: 0 }}
             className={cn(
-              "p-4 rounded-xl text-xs font-bold leading-relaxed flex items-start gap-3",
+              "p-4 rounded-xl text-xs font-bold leading-relaxed flex items-start gap-3 whitespace-pre-line",
               ingestStatus.type === "success"
                 ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400"
-                : "bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400"
+                : ingestStatus.type === "warning"
+                  ? "bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400"
+                  : "bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400"
             )}
           >
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />

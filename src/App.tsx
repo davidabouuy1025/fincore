@@ -224,6 +224,17 @@ export default function App() {
       });
       const data = await res.json();
       if (data.success) {
+        // Collect any arithmetic validation warnings from the server
+        const allWarnings: string[] = (data.saved || [])
+          .flatMap((s: any) => s.validationWarnings || []);
+        if (allWarnings.length > 0) {
+          console.warn("[FINCORE VALIDATION]", allWarnings);
+          // Brief browser alert so user is aware — non-blocking
+          window.alert(
+            `⚠️ Report saved with ${allWarnings.length} data warning(s):\n\n` +
+            allWarnings.map((w: string, i: number) => `${i + 1}. ${w}`).join("\n")
+          );
+        }
         await fetchArchive();
         setParsedDocuments([]);
         setUploadStep("select");
